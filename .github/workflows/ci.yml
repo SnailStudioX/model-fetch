@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Build the dashboard first: vitest covers the frontend, and the built tree
+  # lets the Go UI tests exercise the embedded-build branches (a Go-only tree
+  # without a build takes the 503 path instead).
+  web:
+    name: Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Test frontend
+        run: |
+          cd web
+          npm ci
+          npm test
+
+      - name: Build frontend
+        run: |
+          cd web
+          npm run build
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.27"
+          cache: true
+
+      - name: Test server against built UI
+        run: go test ./internal/server -run 'Test(UIFilesystemChoice|StaticCacheHeaders)' -v
+
+  go:
+    name: Go checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.27"
+          cache: true
+
+      - name: Build
+        run: go build ./cmd/modelfetch
+
+      - name: Vet
+        run: go vet ./...
+
+      # go vet reports correctness, not style, and nothing else in the repo
+      # notices a file that was hand-formatted - so the diff of the next change
+      # would carry formatting noise with no way to tell it apart.
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "these files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      # -race, because the failures that are hardest to see here are concurrent:
+      # the job manager must not hold its lock while broadcasting, superseded run
+      # generations must not write into live counters, and the part writers and the
+      # per-host stream gate share state. Those rules live in the code they govern;
+      # this step is what enforces them. The race detector needs cgo, so it runs
+      # here (Linux runners have a C compiler) and not in the Windows job.
+      - name: Test
+        run: go test -race ./...
+
+  # The Go jobs never touch the Docker surface. Exercise the real entrypoint
+  # image so PUID/PGID, the non-root drop, the --user path, symlink refusal, and
+  # argument validation cannot regress silently.
+  docker:
+    name: Docker entrypoint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Lint entrypoint syntax
+        run: |
+          sh -n docker/entrypoint.sh
+          sh -n docker/smoke-test.sh
+
+      - name: Validate docker-compose.yml
+        run: docker compose -f docker-compose.yml config --quiet
+
+      - name: Build image
+        run: docker build -t modelfetch:ci .
+
+      - name: Smoke-test entrypoint
+        run: sh docker/smoke-test.sh modelfetch:ci
+
+  # Windows is a primary desktop target (the electron/ shell ships the sidecar),
+  # and the paths that behave differently there are the ones this job runs: state
+  # files are committed by renaming over an existing file, which fails with
+  # ERROR_ACCESS_DENIED while any reader holds the target because Go never asks for
+  # FILE_SHARE_DELETE; job state and history must survive a restart; a staging lock
+  # must not be claimed from a live process; and liveness cannot be probed with
+  # signal 0. The rest of the suite is deliberately not run here: it builds its
+  # fixtures with symlinks, which a Windows account without Developer Mode or admin
+  # rights cannot create (CreateSymbolicLink answers ERROR_PRIVILEGE_NOT_HELD, and
+  # Go maps it to no E* code, so a permission test cannot see it). Those fixtures
+  # go through mustSymlink, which skips such a test instead of failing it; the
+  # symlink behaviour itself is exercised by the Linux job, where links always work.
+  go-windows:
+    name: Go checks (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.27"
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test state replacement and persistence
+        run: go test ./internal/server -run 'ReplaceJobsStateFile|WindowsRenameStateFile|JobsState|JobManager|Dismiss|History|ConfigSettings' -v
+
+      - name: Test process liveness and staging claims
+        run: go test ./pkg/hfdownloader -run 'TestIsProcessAlive|TestClaimStagingPath' -v

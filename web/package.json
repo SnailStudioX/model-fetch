@@ -1,0 +1,36 @@
+{
+  "name": "modelfetch-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "postbuild": "node -e \"const fs=require('fs');fs.mkdirSync('../internal/assets/webui/dist',{recursive:true});fs.writeFileSync('../internal/assets/webui/dist/.placeholder','placeholder: keeps //go:embed all:dist valid when no UI has been built; recreated by postbuild because vite build empties dist\\n')\"",
+    "test": "vitest run",
+    "shots": "node scripts/run-app.mjs scripts/capture-shots.mjs",
+    "app": "node scripts/run-app.mjs",
+    "pack": "node scripts/pack-desktop.mjs"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "jsdom": "^30.1.2",
+    "svelte": "^5.57.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
+  },
+  "main": "electron/main.js",
+  "build": {
+    "appId": "com.modelfetch.desktop",
+    "productName": "ModelFetch",
+    "artifactName": "ModelFetch-${version}-${os}-${arch}.${ext}",
+    "directories": { "output": "release" },
+    "files": ["electron/**", "build/tray.png", "build/icon.png"],
+    "extraResources": [{ "from": "build/sidecar", "to": "." }],
+    "win": { "target": ["nsis"], "icon": "build/icon.ico" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true },
+    "linux": { "target": ["AppImage"], "category": "Utility", "icon": "build/icon.png" },
+    "mac": { "target": ["dmg"], "category": "public.app-category.utilities" }
+  }
+}

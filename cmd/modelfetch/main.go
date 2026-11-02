@@ -1,0 +1,103 @@
+// Copyright 2025
+// SPDX-License-Identifier: Apache-2.0
+
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"log"
+	"os"
+	"os/exec"
+	"os/signal"
+	"runtime"
+	"syscall"
+	"time"
+
+	"github.com/bashrusakh/modelfetch/internal/server"
+)
+
+// Version is set at build time via ldflags (-X main.Version=...) from the
+// VERSION file. Defaults to "dev" for un-flagged local builds.
+var Version = "dev"
+
+func main() {
+	// Surface the build version to the API/UI so the displayed version tracks
+	// the binary instead of a hardcoded string.
+	server.Version = Version
+
+	var (
+		port         int
+		cacheDir     string
+		token        string
+		localDir     string
+		stallTimeout string
+		openUI       bool
+		noOpen       bool
+		bind         string
+		printURL     bool
+	)
+
+	flag.IntVar(&port, "port", 8080, "HTTP port (0 lets the OS pick a free port)")
+	flag.StringVar(&bind, "bind", "0.0.0.0", "bind address; use 127.0.0.1 for the desktop shell")
+	flag.BoolVar(&printURL, "print-url", false, "print MODELFETCH_URL <url> once the listener is bound (for the desktop shell)")
+	flag.StringVar(&cacheDir, "cache-dir", "", "Hugging Face cache directory")
+	flag.StringVar(&token, "token", "", "Hugging Face token (also reads HF_TOKEN env)")
+	flag.StringVar(&localDir, "local-dir", "", "write real files into this directory instead of the HF cache layout")
+	flag.StringVar(&stallTimeout, "stall-timeout", "", "abort a stalled download read after this duration (e.g. 60s; 0 disables)")
+	flag.BoolVar(&openUI, "open", true, "open the web UI in the default browser")
+	flag.BoolVar(&noOpen, "no-open", false, "do not open the web UI automatically")
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "ModelFetch %s\n\nUsage: modelfetch [options]\n\nOptions:\n", Version)
+		flag.PrintDefaults()
+	}
+	flag.Parse()
+
+	cfg := server.DefaultConfig()
+	cfg.Addr = bind
+	cfg.Port = port
+	cfg.PrintURL = printURL
+	cfg.CacheDir = cacheDir
+	cfg.Token = token
+	cfg.LocalDir = localDir
+	if err := server.ApplyConfigToServer(&cfg); err != nil {
+		log.Fatalf("load config: %v", err)
+	}
+	// CLI flag takes precedence over the persisted setting. Reject a negative
+	// or unparseable value: it must never silently disable the stall watchdog
+	// or be accepted as a bogus duration.
+	if stallTimeout != "" {
+		d, err := time.ParseDuration(stallTimeout)
+		if err != nil || d < 0 {
+			log.Fatalf("invalid --stall-timeout %q: expected a non-negative duration such as 60s or 0 to disable", stallTimeout)
+		}
+		cfg.StallTimeout = stallTimeout
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if openUI && !noOpen {
+		go openBrowser(fmt.Sprintf("http://localhost:%d", cfg.Port))
+	}
+
+	if err := server.New(cfg).ListenAndServe(ctx); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	if err := cmd.Start(); err != nil {
+		log.Printf("open browser: %v", err)
+	}
+}

@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "lang": "zh",
+  "project": "ModelFetch 官网",
+  "brief": "解决国内下载大模型慢与中断白跑的官网首屏：同一份文案与同一组动作，比较配色、字体、控件形状、密度与版式气质",
+  "round": "风格卡片 v2（速度优先）",
+  "candidates": [
+    {
+      "id": "chunks",
+      "name": "并行分块",
+      "concept": "把下载画成它本来的样子：文件被切成一块一块并行落盘，断了那些格子还在。整屏只讲这一件事。",
+      "typography": "标题 Segoe UI · 正文 Segoe UI · 数字 Cascadia Mono",
+      "palette": [
+        "#10131A",
+        "#F1F5FA",
+        "#2FD9A0",
+        "#F0A02D"
+      ],
+      "traits": [
+        "深墨底 + 一格一格点亮的字节块",
+        "超大等宽百分比",
+        "只有一处发光",
+        "文字极少，全挂在同一条进度上"
+      ],
+      "kind": "html",
+      "source": "card-chunks.html"
+    },
+    {
+      "id": "dash",
+      "name": "仪表台",
+      "concept": "像一台真在跑的设备读数台：速率、已落盘字节、第几块、重试次数、剩余时间，一行一行读得下去。",
+      "typography": "标题 Segoe UI · 正文 Segoe UI · 数字 Consolas",
+      "palette": [
+        "#E9EBEE",
+        "#161C24",
+        "#2F6F8F",
+        "#C25E00"
+      ],
+      "traits": [
+        "浅冷灰底 + 发丝表格",
+        "数值一律等宽",
+        "钢青蓝做强调",
+        "橙色只标中断与重试"
+      ],
+      "kind": "html",
+      "source": "card-dash.html"
+    },
+    {
+      "id": "native",
+      "name": "应用同款",
+      "concept": "官网就是产品界面那一套语言：微信绿、浅灰底、圆角卡片，看过一次 App 就知道是同一家，首屏放真实任务页。",
+      "typography": "标题 Segoe UI · 正文 Segoe UI · 数字 Consolas",
+      "palette": [
+        "#EDEDED",
+        "#191919",
+        "#07C160",
+        "#FA9D3B"
+      ],
+      "traits": [
+        "浅灰白底 + 微信绿 #07c160",
+        "圆角卡片与柔影",
+        "留白宽松",
+        "左文右真实界面"
+      ],
+      "kind": "html",
+      "source": "card-native.html"
+    },
+    {
+      "id": "console",
+      "name": "终端优先",
+      "concept": "官网本身就是一次会话：一条启动命令加一段续传日志，命令承担主视觉，复制就是开始用。",
+      "typography": "标题 Cascadia Mono · 正文 Segoe UI · 数字 Cascadia Mono",
+      "palette": [
+        "#0E1113",
+        "#E8EDEA",
+        "#07C160",
+        "#E0A23C"
+      ],
+      "traits": [
+        "近黑底",
+        "等宽字体做标题",
+        "终端绿只在光标与主按钮",
+        "只有边框和网格"
+      ],
+      "kind": "html",
+      "source": "card-console.html"
+    },
+    {
+      "id": "nightshift",
+      "name": "夜班",
+      "concept": "夜里挂机下 40 GB：一列排队的模型，右边是这一个还剩多久、已经落盘多少。安静，但时间一直在走。",
+      "typography": "标题 Georgia · 正文 Microsoft YaHei · 数字 Georgia",
+      "palette": [
+        "#15120D",
+        "#F2EBDD",
+        "#E0A23C",
+        "#D96A5B"
+      ],
+      "traits": [
+        "暖墨黑底",
+        "衬线大标题配时间刻度",
+        "左列右详情",
+        "低对比，只有当前任务亮"
+      ],
+      "kind": "html",
+      "source": "card-nightshift.html"
+    },
+    {
+      "id": "poster",
+      "name": "大字主张",
+      "concept": "文字就是画面：一句主张占满首屏，下面用分栏把机制写清楚，颜色只留给一条下划线。",
+      "typography": "标题 SimHei · 正文 Microsoft YaHei · 数字 Cascadia Mono",
+      "palette": [
+        "#F5F4F0",
+        "#141412",
+        "#067A46",
+        "#B26A16"
+      ],
+      "traits": [
+        "纸白底",
+        "超大中文标题跨过边缘",
+        "三栏小字讲机制",
+        "无图片无卡片"
+      ],
+      "kind": "html",
+      "source": "card-poster.html"
+    }
+  ]
+}

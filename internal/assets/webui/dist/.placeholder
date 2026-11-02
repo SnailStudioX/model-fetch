@@ -1,0 +1,1 @@
+placeholder: keeps //go:embed all:dist valid when no UI has been built; recreated by postbuild because vite build empties dist

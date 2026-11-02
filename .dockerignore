@@ -1,0 +1,48 @@
+# Keep the build context lean and reproducible.
+
+# VCS metadata is never needed inside the image.
+.git
+
+# Host node_modules would overwrite the freshly installed ones in the Node
+# frontend stage and bloat every build.
+web/node_modules
+
+# The locally built frontend must not travel in the context; the Dockerfile
+# builds its own copy in the webapp stage. The placeholder stays so
+# //go:embed all:dist still matches before the stage output is copied in.
+internal/assets/webui/dist/*
+!internal/assets/webui/dist/.placeholder
+
+# Desktop-shell output. The image builds its own server binary, so the
+# electron-builder tree (hundreds of MB) and the sidecar copy it packs are pure
+# context weight.
+web/release
+web/build/sidecar
+
+# Binaries and scratch at the repository root: builds, unpacked Electron
+# distributions left behind by desktop-shell experiments, and test output.
+/output
+/eltest*/
+/modelfetch
+/modelfetch.exe
+*.exe
+*.test
+coverage.txt
+
+# State written by running the server in a checkout. None of it is a build input,
+# and a downloaded model tree in the context costs upload time on every build.
+/modelfetch.json
+/modelfetch.yaml
+/modelfetch.yml
+/modelfetch-data
+/hfdownloader.json
+/hfdownloader.yaml
+/hfdownloader.yml
+/jobs_state.json
+/download_history.json
+/Models
+/Storage
+/Datasets
+/.pack.log
+/.server.log
+/.server.err.log

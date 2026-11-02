@@ -1,0 +1,73 @@
+{
+  "project": "ModelFetch 官网",
+  "lang": "zh",
+  "round": "风格卡片 v2（速度优先）",
+  "brief": "解决国内下载大模型慢与中断白跑的官网首屏：同一份文案与同一组动作，比较配色、字体、控件形状、密度与版式气质",
+  "content": {
+    "title": "别让 40 GB 白下。",
+    "body": "默认走 hf-mirror.com 国内镜像，可切官方端点或自建镜像；单个大文件按连接数并行分块下载，中途断了从已落盘的字节接着下，重试不从 0 开始。每个 LFS 文件下完做 SHA-256 校验，速度、剩余时间、暂停与重试在任务页实时可见。",
+    "number": "62.4%",
+    "number_label": "Qwen3-32B-Q4_K_M · 23.4 GB · 8 路并行 · 断线后从已落盘的 14.6 GB 处续上",
+    "primary": "下载 ModelFetch",
+    "secondary": "看它怎么续上",
+    "tags": ["默认 hf-mirror.com，国内可达", "断点续传 · 自动重试 · SHA-256 校验"],
+    "input_label": "仓库 ID",
+    "input_value": "Qwen/Qwen3-32B-GGUF"
+  },
+  "cards": [
+    {
+      "id": "chunks",
+      "name": "并行分块",
+      "concept": "把下载画成它本来的样子：文件被切成一块一块并行落盘，断了那些格子还在。整屏只讲这一件事。",
+      "traits": ["深墨底 + 一格一格点亮的字节块", "超大等宽百分比", "只有一处发光", "文字极少，全挂在同一条进度上"],
+      "colors": {"bg": "#10131A", "surface": "#171C26", "text": "#F1F5FA", "muted": "#8B96A6", "accent": "#2FD9A0", "accent_text": "#062018", "line": "#232B38", "warn": "#F0A02D"},
+      "fonts": {"display": "\"Segoe UI\", \"Microsoft YaHei\", sans-serif", "body": "\"Segoe UI\", \"Microsoft YaHei\", sans-serif", "number": "\"Cascadia Mono\", Consolas, monospace"},
+      "display_weight": 900, "radius": 4, "border": "none", "shadow": "none", "density": "airy", "layout": "fullbleed"
+    },
+    {
+      "id": "dash",
+      "name": "仪表台",
+      "concept": "像一台真在跑的设备读数台：速率、已落盘字节、第几块、重试次数、剩余时间，一行一行读得下去。",
+      "traits": ["浅冷灰底 + 发丝表格", "数值一律等宽", "钢青蓝做强调", "橙色只标中断与重试"],
+      "colors": {"bg": "#E9EBEE", "surface": "#F7F8F9", "text": "#161C24", "muted": "#646D78", "accent": "#2F6F8F", "accent_text": "#FFFFFF", "line": "#CFD5DC", "warn": "#C25E00"},
+      "fonts": {"display": "\"Segoe UI\", \"Microsoft YaHei\", sans-serif", "body": "\"Segoe UI\", \"Microsoft YaHei\", sans-serif", "number": "Consolas, monospace"},
+      "display_weight": 700, "radius": 2, "border": "solid", "shadow": "none", "density": "compact", "layout": "topbar-cards"
+    },
+    {
+      "id": "native",
+      "name": "应用同款",
+      "concept": "官网就是产品界面那一套语言：微信绿、浅灰底、圆角卡片，看过一次 App 就知道是同一家，首屏放真实任务页。",
+      "traits": ["浅灰白底 + 微信绿 #07c160", "圆角卡片与柔影", "留白宽松", "左文右真实界面"],
+      "colors": {"bg": "#EDEDED", "surface": "#FFFFFF", "text": "#191919", "muted": "#6E6E6E", "accent": "#07C160", "accent_text": "#FFFFFF", "line": "#E5E5E5", "warn": "#FA9D3B"},
+      "fonts": {"display": "\"Segoe UI\", \"Microsoft YaHei\", sans-serif", "body": "\"Segoe UI\", \"Microsoft YaHei\", sans-serif", "number": "Consolas, monospace"},
+      "display_weight": 700, "radius": 12, "border": "hairline", "shadow": "soft", "density": "airy", "layout": "hero-split"
+    },
+    {
+      "id": "console",
+      "name": "终端优先",
+      "concept": "官网本身就是一次会话：一条启动命令加一段续传日志，命令承担主视觉，复制就是开始用。",
+      "traits": ["近黑底", "等宽字体做标题", "终端绿只在光标与主按钮", "只有边框和网格"],
+      "colors": {"bg": "#0E1113", "surface": "#14181B", "text": "#E8EDEA", "muted": "#8A9490", "accent": "#07C160", "accent_text": "#06170F", "line": "#262C30", "warn": "#E0A23C"},
+      "fonts": {"display": "\"Cascadia Mono\", Consolas, monospace", "body": "\"Segoe UI\", \"Microsoft YaHei\", sans-serif", "number": "\"Cascadia Mono\", Consolas, monospace"},
+      "display_weight": 700, "radius": 4, "border": "solid", "shadow": "none", "density": "regular", "layout": "hero-center"
+    },
+    {
+      "id": "nightshift",
+      "name": "夜班",
+      "concept": "夜里挂机下 40 GB：一列排队的模型，右边是这一个还剩多久、已经落盘多少。安静，但时间一直在走。",
+      "traits": ["暖墨黑底", "衬线大标题配时间刻度", "左列右详情", "低对比，只有当前任务亮"],
+      "colors": {"bg": "#15120D", "surface": "#1D1913", "text": "#F2EBDD", "muted": "#9A9082", "accent": "#E0A23C", "accent_text": "#1A1409", "line": "#312A20", "warn": "#D96A5B"},
+      "fonts": {"display": "Georgia, SimSun, serif", "body": "\"Microsoft YaHei\", \"Segoe UI\", sans-serif", "number": "Georgia, serif"},
+      "display_weight": 500, "radius": 8, "border": "hairline", "shadow": "none", "density": "regular", "layout": "queue-detail", "texture": "paper"
+    },
+    {
+      "id": "poster",
+      "name": "大字主张",
+      "concept": "文字就是画面：一句主张占满首屏，下面用分栏把机制写清楚，颜色只留给一条下划线。",
+      "traits": ["纸白底", "超大中文标题跨过边缘", "三栏小字讲机制", "无图片无卡片"],
+      "colors": {"bg": "#F5F4F0", "surface": "#FFFFFF", "text": "#141412", "muted": "#6A655C", "accent": "#067A46", "accent_text": "#FFFFFF", "line": "#DDD8CD", "warn": "#B26A16"},
+      "fonts": {"display": "SimHei, \"Microsoft YaHei\", sans-serif", "body": "\"Microsoft YaHei\", \"Segoe UI\", sans-serif", "number": "\"Cascadia Mono\", Consolas, monospace"},
+      "display_weight": 900, "radius": 0, "border": "hairline", "shadow": "none", "density": "compact", "layout": "editorial", "texture": "paper"
+    }
+  ]
+}
