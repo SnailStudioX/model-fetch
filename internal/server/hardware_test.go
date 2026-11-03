@@ -175,6 +175,34 @@ func TestHardwareSlotsKeepDetectedCardsAndPicks(t *testing.T) {
 	}
 }
 
+// A machine with no adapter at all - a NAS, a VM, a container - still has to
+// carry the card the user described. With nothing detected there was no position
+// to build, so the slot list narrowed to nothing and the profile reported the
+// name and VRAM from the override but no cores.
+func TestHardwareSlotsNamedCardWithoutDetectedGPU(t *testing.T) {
+	ov := &HardwareConfig{GPUName: "NVIDIA GeForce RTX 3090", VRAMGB: 16}
+
+	slots := hardwareSlots(nil, ov)
+	if len(slots) != 1 {
+		t.Fatalf("slots = %d, want the one position the override describes", len(slots))
+	}
+	if slots[0].Name != ov.GPUName || slots[0].NameSource != "manual" {
+		t.Errorf("slot 1 = %+v, want the hand-picked card", slots[0])
+	}
+	if slots[0].Cores != 10496 || slots[0].CoresSource != "catalog" {
+		t.Errorf("slot 1 cores = %d (%v), want the 3090 catalog core count from the catalog", slots[0].Cores, slots[0].CoresSource)
+	}
+
+	eff, sources := mergeHardware(smartdl.Hardware{SystemRAMGB: 64}, ov)
+	applyPrimarySlot(&eff, sources, slots)
+	if eff.GPUName != ov.GPUName || eff.BandwidthGBs != 936 {
+		t.Errorf("profile = %+v, want the picked card with its catalog bandwidth", eff)
+	}
+	if sources["cores"] != "catalog" {
+		t.Errorf("cores source = %v, want catalog", sources["cores"])
+	}
+}
+
 // A count lower than the detected adapters is a deliberate choice: the profile
 // scores against the strongest card, so the largest-VRAM slot must survive even
 // when it is not the first detected row.

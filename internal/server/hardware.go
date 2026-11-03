@@ -309,8 +309,17 @@ type GPUSlot struct {
 // then scores against the strongest cards only, so the largest-VRAM slots survive.
 func hardwareSlots(det []DetectedGPU, ov *HardwareConfig) []GPUSlot {
 	described := len(det)
-	if ov != nil && len(ov.GPUs) > described {
-		described = len(ov.GPUs)
+	if ov != nil {
+		if len(ov.GPUs) > described {
+			described = len(ov.GPUs)
+		}
+		if described == 0 && ov.GPUName != "" {
+			// A hand-picked card is a position of its own. A NAS or a VM detects
+			// no adapter at all, and without one to build the profile would report
+			// the card's name and VRAM from the override while narrowing the slot
+			// list to nothing - so its catalog specs, cores included, vanished.
+			described = 1
+		}
 	}
 	target := described
 	if ov != nil && ov.GPUCount > 0 {
