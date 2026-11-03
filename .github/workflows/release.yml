@@ -64,6 +64,9 @@ jobs:
           - os: windows
             arch: amd64
             ext: ".exe"
+          - os: windows
+            arch: arm64
+            ext: ".exe"
 
     steps:
       - name: Checkout
@@ -103,7 +106,9 @@ jobs:
         if: ${{ matrix.os == 'windows' }}
         run: |
           go run ./cmd/modelfetch/genico.go
-          rsrc -ico cmd/modelfetch/modelfetch.ico -o cmd/modelfetch/resource_windows_amd64.syso
+          # Go only links a .syso whose file name names the target, so this
+          # follows matrix.arch rather than being hardcoded to amd64.
+          rsrc -ico cmd/modelfetch/modelfetch.ico -o cmd/modelfetch/resource_windows_${{ matrix.arch }}.syso
 
       - name: Build binary
         env:
@@ -118,7 +123,7 @@ jobs:
       - name: Cleanup Windows resources (Windows only)
         if: ${{ matrix.os == 'windows' }}
         run: |
-          rm -f cmd/modelfetch/resource_windows_amd64.syso cmd/modelfetch/modelfetch.ico
+          rm -f cmd/modelfetch/resource_windows_*.syso cmd/modelfetch/modelfetch.ico
 
       - name: Upload raw binary
         uses: softprops/action-gh-release@7c4723f7a335432393329f8f1c564994ce50185d
