@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
+	"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
 )
 
 // useStreamBudget restores the process-wide stream gate after a test changes it.

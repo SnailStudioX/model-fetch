@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bashrusakh/modelfetch/internal/hubsource"
+	"github.com/SnailStudioX/model-fetch/internal/hubsource"
 )
 
 // An endpoint is a base URL that fits exactly one source's API shape. A stale

@@ -150,6 +150,6 @@ CMD []
 EXPOSE 8080
 
 # Labels
-LABEL org.opencontainers.image.source="https://github.com/bashrusakh/modelfetch"
+LABEL org.opencontainers.image.source="https://github.com/SnailStudioX/model-fetch"
 LABEL org.opencontainers.image.description="Desktop-style web UI for finding, analyzing, and downloading Hugging Face models"
 LABEL org.opencontainers.image.licenses="Apache-2.0"

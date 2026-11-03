@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
+	"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
 )
 
 func ExampleDownload() {

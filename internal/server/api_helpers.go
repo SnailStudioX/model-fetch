@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
+	"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
 )
 
 // maxRequestBodyBytes caps what the server decodes from one request. The

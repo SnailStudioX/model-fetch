@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
+	"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
 )
 
 type jobWriteActivity struct {

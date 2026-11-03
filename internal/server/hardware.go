@@ -14,7 +14,7 @@ import (
 	"github.com/jarvisfriends/devices-gpu/gpu"
 	"github.com/jaypipes/ghw"
 
-	"github.com/bashrusakh/modelfetch/pkg/smartdl"
+	"github.com/SnailStudioX/model-fetch/pkg/smartdl"
 )
 
 // HardwareConfig is the user's override block. Every field is optional; a value

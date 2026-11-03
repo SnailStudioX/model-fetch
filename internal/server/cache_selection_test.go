@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
+	"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
 )
 
 type cacheSelectionResponse struct {

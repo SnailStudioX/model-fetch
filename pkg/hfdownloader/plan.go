@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/internal/hubsource"
+	"github.com/SnailStudioX/model-fetch/internal/hubsource"
 )
 
 // unsafeRepoPath reports whether a relative path returned by the repo tree API

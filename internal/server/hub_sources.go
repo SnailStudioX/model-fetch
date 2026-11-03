@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bashrusakh/modelfetch/internal/hubsource"
+	"github.com/SnailStudioX/model-fetch/internal/hubsource"
 )
 
 // HubSource is one saved hub access source: a named (source, endpoint, token)

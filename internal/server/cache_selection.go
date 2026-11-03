@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
+	"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
 )
 
 type cacheSelectionMember struct {

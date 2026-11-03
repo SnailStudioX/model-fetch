@@ -14,7 +14,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
+	"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
 )
 
 // --- Mirror Target Management ---

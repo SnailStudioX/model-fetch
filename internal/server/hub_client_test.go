@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
+	"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
 )
 
 // Every API-side hub request used to call hfdownloader.BuildHTTPClient, which

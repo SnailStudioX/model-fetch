@@ -17,7 +17,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/bashrusakh/modelfetch/internal/hubtree"
+	"github.com/SnailStudioX/model-fetch/internal/hubtree"
 )
 
 // A successful opposite namespace must not hide a selected tree's structural

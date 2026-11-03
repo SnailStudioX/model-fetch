@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/internal/server"
+	"github.com/SnailStudioX/model-fetch/internal/server"
 )
 
 // Version is set at build time via ldflags (-X main.Version=...) from the

@@ -29,7 +29,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/internal/hubtree"
+	"github.com/SnailStudioX/model-fetch/internal/hubtree"
 )
 
 // DefaultEndpoint is the Hugging Face endpoint used when settings leave the

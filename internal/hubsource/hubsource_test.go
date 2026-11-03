@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bashrusakh/modelfetch/internal/hubtree"
+	"github.com/SnailStudioX/model-fetch/internal/hubtree"
 )
 
 // These tests pin the Hugging Face URL shapes to the strings the call sites

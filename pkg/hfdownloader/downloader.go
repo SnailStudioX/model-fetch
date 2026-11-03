@@ -22,7 +22,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/internal/hubsource"
+	"github.com/SnailStudioX/model-fetch/internal/hubsource"
 )
 
 // progressReader wraps an io.Reader and emits progress events during reads.

@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
+	"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
 )
 
 // Whether a cached library is still intact is a question nothing here currently

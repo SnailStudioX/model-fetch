@@ -39,16 +39,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve image name
+        # ghcr paths have to be lowercase; github.repository keeps the owner's case.
+        id: image
+        run: echo "name=$(echo "${REGISTRY}/${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ steps.image.outputs.name }}
+          # :latest has to be keyed on the push event: only tags trigger this
+          # workflow, and a tag push is never "the default branch", so
+          # enable={{is_default_branch}} would leave :latest unpublished while the
+          # readme and docker-compose.yml both point at it.
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.event_name == 'push' }}
             type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }},priority=1000
 
       - name: Build and push Docker image

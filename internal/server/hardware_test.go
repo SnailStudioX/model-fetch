@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bashrusakh/modelfetch/pkg/smartdl"
+	"github.com/SnailStudioX/model-fetch/pkg/smartdl"
 	"github.com/jarvisfriends/devices-common/devices"
 )
 

@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/internal/hubsource"
-	"github.com/bashrusakh/modelfetch/internal/hubtree"
+	"github.com/SnailStudioX/model-fetch/internal/hubsource"
+	"github.com/SnailStudioX/model-fetch/internal/hubtree"
 )
 
 // DefaultEndpoint is the HuggingFace Hub URL used when Settings.Endpoint is empty:

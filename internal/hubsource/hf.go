@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/internal/hubtree"
+	"github.com/SnailStudioX/model-fetch/internal/hubtree"
 )
 
 // HF is the Hugging Face Hub source. It is the historical shape of this project:

@@ -26,7 +26,7 @@ Download a model with default settings:
 		"fmt"
 		"log"
 
-		"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
+		"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
 	)
 
 	func main() {

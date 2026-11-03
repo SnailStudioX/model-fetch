@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/internal/assets/webui"
+	"github.com/SnailStudioX/model-fetch/internal/assets/webui"
 )
 
 // The frontend is one decision point: the built Svelte app when a build is

@@ -17,7 +17,7 @@ import (
 
 	"golang.org/x/net/proxy"
 
-	"github.com/bashrusakh/modelfetch/internal/hubsource"
+	"github.com/SnailStudioX/model-fetch/internal/hubsource"
 )
 
 // ProxyConfig holds proxy configuration settings.

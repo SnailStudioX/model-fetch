@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
+	"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
 )
 
 // TestJobManager_DispatchRespectsMaxActive verifies that no more than

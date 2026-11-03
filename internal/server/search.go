@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/internal/hubsource"
-	"github.com/bashrusakh/modelfetch/internal/hubtree"
-	"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
-	"github.com/bashrusakh/modelfetch/pkg/smartdl"
+	"github.com/SnailStudioX/model-fetch/internal/hubsource"
+	"github.com/SnailStudioX/model-fetch/internal/hubtree"
+	"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
+	"github.com/SnailStudioX/model-fetch/pkg/smartdl"
 )
 
 // SearchResult is one model returned by /api/search.

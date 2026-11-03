@@ -23,7 +23,7 @@ Release:        1%{?dist}
 Summary:        Desktop-style web UI for HuggingFace model downloads
 
 License:        Apache-2.0
-URL:            https://github.com/bashrusakh/modelfetch
+URL:            https://github.com/SnailStudioX/model-fetch
 Source0:        modelfetch_linux_amd64
 Source1:        modelfetch.desktop
 Source2:        modelfetch.svg
@@ -78,5 +78,5 @@ rm -rf %{buildroot}
 %doc README.md
 
 %changelog
-* Mon Jun 29 2026 ModelFetch Maintainer <https://github.com/bashrusakh/modelfetch> - 0.0.1-1
+* Mon Jun 29 2026 ModelFetch Maintainer <https://github.com/SnailStudioX/model-fetch> - 0.0.1-1
 - Initial RPM package with desktop integration

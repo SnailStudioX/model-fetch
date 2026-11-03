@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/internal/hubsource"
-	"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
-	"github.com/bashrusakh/modelfetch/pkg/smartdl"
+	"github.com/SnailStudioX/model-fetch/internal/hubsource"
+	"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
+	"github.com/SnailStudioX/model-fetch/pkg/smartdl"
 )
 
 // --- Handlers ---

@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/internal/hubsource"
+	"github.com/SnailStudioX/model-fetch/internal/hubsource"
 )
 
 // Search rows show a logo per author, not per repository: neither source's search

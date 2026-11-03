@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
+	"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
 )
 
 // TestApplyJobProgress_ResumeFloorReleasesOnAuthoritativeProgress is the

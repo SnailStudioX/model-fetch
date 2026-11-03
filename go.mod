@@ -1,4 +1,4 @@
-module github.com/bashrusakh/modelfetch
+module github.com/SnailStudioX/model-fetch
 
 go 1.27
 

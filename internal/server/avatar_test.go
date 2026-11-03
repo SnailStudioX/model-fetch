@@ -12,7 +12,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/bashrusakh/modelfetch/internal/hubsource"
+	"github.com/SnailStudioX/model-fetch/internal/hubsource"
 )
 
 // One lookup per unique author, cached across searches, and only successes stored:

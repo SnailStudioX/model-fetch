@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/internal/hubsource"
+	"github.com/SnailStudioX/model-fetch/internal/hubsource"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/microcosm-cc/bluemonday/css"
 	"github.com/yuin/goldmark"

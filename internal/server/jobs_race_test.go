@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
+	"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
 )
 
 // TestJobManager_CloneJobPartialFilesSync exercises the lock discipline for

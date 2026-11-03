@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/internal/assets/webui"
-	"github.com/bashrusakh/modelfetch/pkg/hfdownloader"
+	"github.com/SnailStudioX/model-fetch/internal/assets/webui"
+	"github.com/SnailStudioX/model-fetch/pkg/hfdownloader"
 	"github.com/jarvisfriends/devices-common/devices"
 )
 

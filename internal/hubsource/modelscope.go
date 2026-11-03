@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/internal/hubtree"
+	"github.com/SnailStudioX/model-fetch/internal/hubtree"
 )
 
 // DefaultModelScopeEndpoint is the base URL used when a ModelScope source is

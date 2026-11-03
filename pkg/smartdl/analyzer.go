@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bashrusakh/modelfetch/internal/hubsource"
-	"github.com/bashrusakh/modelfetch/internal/hubtree"
+	"github.com/SnailStudioX/model-fetch/internal/hubsource"
+	"github.com/SnailStudioX/model-fetch/internal/hubtree"
 )
 
 // defaultEndpoint follows the hub default in internal/hubsource, so an analyzer
