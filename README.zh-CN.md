@@ -105,6 +105,8 @@ modelfetch
 
 ## 界面截图
 
+界面是中英双语的,两份说明各用自己语言的截图。重新生成:本页用 `npm run shots`,[英文说明](README.md)用 `npm run shots -- --lang=en`。
+
 | 模型 | 活动任务 |
 |---|---|
 | ![模型](docs/screenshots/modelfetch-models.png) | ![活动任务](docs/screenshots/modelfetch-jobs.png) |

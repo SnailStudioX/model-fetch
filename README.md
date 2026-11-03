@@ -11,7 +11,7 @@ English | [简体中文](README.zh-CN.md)
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/modelfetch-models.png" alt="ModelFetch Models view" width="900">
+  <img src="docs/screenshots/modelfetch-models-en.png" alt="ModelFetch Models view" width="900">
 </p>
 
 ModelFetch is a single Go binary with a built-in web UI (a light theme in the style of WeChat). Start it and the whole model workflow happens in the browser: search a hub, analyze GGUF quantizations, pick the files you want, download with resume, browse the local cache, and mirror that cache to a NAS or another disk.
@@ -105,17 +105,21 @@ Notes:
 
 ## Screenshots
 
+The interface is bilingual, and each readme shows its own language. Capture them
+with the app running: `npm run shots -- --lang=en` here, `npm run shots` for the
+Chinese set in [README.zh-CN.md](README.zh-CN.md).
+
 | Models | Jobs |
 |---|---|
-| ![Models](docs/screenshots/modelfetch-models.png) | ![Jobs](docs/screenshots/modelfetch-jobs.png) |
+| ![Models](docs/screenshots/modelfetch-models-en.png) | ![Jobs](docs/screenshots/modelfetch-jobs-en.png) |
 
 | Local cache | Mirror |
 |---|---|
-| ![Local cache](docs/screenshots/modelfetch-cache.png) | ![Mirror](docs/screenshots/modelfetch-mirror.png) |
+| ![Local cache](docs/screenshots/modelfetch-cache-en.png) | ![Mirror](docs/screenshots/modelfetch-mirror-en.png) |
 
 | Settings |
 |---|
-| ![Settings](docs/screenshots/modelfetch-settings.png) |
+| ![Settings](docs/screenshots/modelfetch-settings-en.png) |
 
 ## API
 

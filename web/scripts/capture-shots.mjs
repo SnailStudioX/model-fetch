@@ -1,6 +1,8 @@
 // Takes the README screenshots with the running app (headless Electron window).
-// Usage: npm run shots  — expects the server on http://127.0.0.1:8081 (override: 2nd arg).
-// Output: ../../docs/screenshots/modelfetch-<page>.png
+// Usage: npm run shots -- [--lang=zh|en] [serverURL]
+// Expects the server on http://127.0.0.1:8081 (override: last argument).
+// Output: ../../docs/screenshots/modelfetch-<page>.png, or modelfetch-<page>-<lang>.png
+// for a language the readme pair does not boot in by default (the English one).
 
 import { app, BrowserWindow } from "electron";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -13,7 +15,18 @@ app.disableHardwareAcceleration();
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const outDir = path.resolve(here, "../../docs/screenshots");
-const base = process.argv[3] || "http://127.0.0.1:8081";
+
+// Where the caller's arguments land in argv depends on how Electron was
+// launched, so match them by shape rather than by position.
+const langFlag = process.argv.find((arg) => arg.startsWith("--lang="));
+const lang = langFlag ? langFlag.slice("--lang=".length) : "zh";
+if (!["zh", "en"].includes(lang)) {
+  console.error(`capture-shots: unknown --lang=${JSON.stringify(lang)} (expected zh or en)`);
+  app.exit(1);
+}
+const base = process.argv.find((arg) => /^https?:\/\//.test(arg)) || "http://127.0.0.1:8081";
+// The Chinese set is what the app boots in, so it keeps the unsuffixed names.
+const suffix = lang === "zh" ? "" : `-${lang}`;
 
 // One entry per README screenshot: the nav page to open, and what "rendered"
 // looks like there. Models has a fallback path because the recommend feed's
@@ -114,6 +127,17 @@ async function main() {
     console.error("app shell never rendered — is the server running at " + base + "?");
     app.exit(1);
   }
+  // The language is a persisted choice the app reads at startup
+  // (web/src/store.svelte.js), so set it and reload: every page below then
+  // renders in it from its first paint, as it would for a reader of that readme.
+  await win.webContents.executeJavaScript(
+    `localStorage.setItem("modelfetch.lang", ${JSON.stringify(lang)}); true`
+  );
+  await win.loadURL(base + "/");
+  if (!(await waitFor(win, ".nav-item", 15000))) {
+    console.error(`app shell never rendered in ${lang}`);
+    app.exit(1);
+  }
   // Let the default page's data and fonts settle before the first capture.
   await wait(1500);
 
@@ -129,7 +153,7 @@ async function main() {
     // Let nav transitions and lazy images finish painting before the capture.
     await wait(2500);
     const image = await win.webContents.capturePage();
-    const file = path.join(outDir, `modelfetch-${shot.page}.png`);
+    const file = path.join(outDir, `modelfetch-${shot.page}${suffix}.png`);
     writeFileSync(file, image.toPNG());
     console.log("wrote", file);
   }
