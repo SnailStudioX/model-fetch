@@ -10,7 +10,7 @@
 # That state persists under /data.
 services:
   modelfetch:
-    image: ghcr.io/snailstudioux/model-fetch:latest
+    image: ghcr.io/snailstudiox/model-fetch:latest
     container_name: modelfetch
     ports:
       - "8080:8080"

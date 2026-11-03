@@ -37,19 +37,19 @@ Pre-built binaries are published from tags — see [Releases](https://github.com
 go install github.com/SnailStudioX/model-fetch/cmd/modelfetch@latest
 ```
 
-Docker, with all state under one `/data` volume. The `ghcr.io/snailstudioux/model-fetch` image is built by the same tag trigger; while no image is published, build it locally:
-
-```bash
-docker build -t modelfetch:local .
-docker run --rm -p 8080:8080 -v modelfetch-data:/data modelfetch:local
-```
-
-Once an image is published, use the registry address:
+Docker, with all state under one `/data` volume. The image is published by the same tag trigger, and the registry is public — no login:
 
 ```bash
 docker run --rm -p 8080:8080 \
   -v modelfetch-data:/data \
-  ghcr.io/snailstudioux/model-fetch:latest
+  ghcr.io/snailstudiox/model-fetch:latest
+```
+
+An image built from this checkout behaves the same, which is what you want with local changes:
+
+```bash
+docker build -t modelfetch:local .
+docker run --rm -p 8080:8080 -v modelfetch-data:/data modelfetch:local
 ```
 
 The UID/GID options NAS and Synology setups usually need (`PUID`/`PGID`, default 1000) and `UMASK` (default 022) are handled by the image entrypoint; its header in `docker/entrypoint.sh` states the behavior and defaults, and `docker/smoke-test.sh` exercises them one case at a time.

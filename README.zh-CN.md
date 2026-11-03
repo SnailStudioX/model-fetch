@@ -37,19 +37,19 @@ ModelFetch 是一个单文件 Go 程序,内置 Web 界面(微信风格浅色主�
 go install github.com/SnailStudioX/model-fetch/cmd/modelfetch@latest
 ```
 
-Docker(全部状态挂在一条 `/data` 卷下)。`ghcr.io/snailstudioux/model-fetch` 的镜像同样由 tag 触发构建,还没有镜像时先本地构建:
-
-```bash
-docker build -t modelfetch:local .
-docker run --rm -p 8080:8080 -v modelfetch-data:/data modelfetch:local
-```
-
-已发布时用镜像仓库的地址:
+Docker(全部状态挂在一条 `/data` 卷下)。镜像由同一个 tag 触发发布,镜像仓库是公开的,不需要登录:
 
 ```bash
 docker run --rm -p 8080:8080 \
   -v modelfetch-data:/data \
-  ghcr.io/snailstudioux/model-fetch:latest
+  ghcr.io/snailstudiox/model-fetch:latest
+```
+
+用本地这份代码构建的镜像行为一致,有本地改动时就用它:
+
+```bash
+docker build -t modelfetch:local .
+docker run --rm -p 8080:8080 -v modelfetch-data:/data modelfetch:local
 ```
 
 NAS/群晖环境常用 UID/GID 选项(`PUID`/`PGID`,默认 1000)与 `UMASK`(默认 022)由镜像入口处理,行为与默认值写在 `docker/entrypoint.sh` 顶部,并由 `docker/smoke-test.sh` 逐条验证。
