@@ -14,6 +14,29 @@ import (
 	"time"
 )
 
+// A successful dismissal leaves a persistence goroutine that reads m.jobs while
+// holding m.mu (jobs.go:934), so a test that seeds or clears that map by hand has
+// to hold the same lock - otherwise the two halves of a data race are this write
+// and that read.
+func putJob(m *JobManager, id string, job *Job) {
+	m.mu.Lock()
+	m.jobs[id] = job
+	m.mu.Unlock()
+}
+
+func dropJob(m *JobManager, id string) {
+	m.mu.Lock()
+	delete(m.jobs, id)
+	m.mu.Unlock()
+}
+
+func hasJob(m *JobManager, id string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	_, present := m.jobs[id]
+	return present
+}
+
 // TestDismissJob_OnlyTerminalStates ensures DismissJob refuses to remove
 // jobs that are still queued or running — a user can't accidentally wipe
 // a live download by clicking the wrong button. Paused jobs are terminal
@@ -36,18 +59,18 @@ func TestDismissJob_OnlyTerminalStates(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(string(tc.status), func(t *testing.T) {
 			id := "job-" + string(tc.status)
-			m.jobs[id] = &Job{
+			putJob(m, id, &Job{
 				ID:        id,
 				Repo:      "owner/repo",
 				Status:    tc.status,
 				CreatedAt: time.Now(),
-			}
+			})
 
 			got := m.DismissJob(id)
 			if got != tc.wantRemove {
 				t.Errorf("DismissJob(%q) = %v, want %v", tc.status, got, tc.wantRemove)
 			}
-			_, present := m.jobs[id]
+			present := hasJob(m, id)
 			if tc.wantRemove && present {
 				t.Errorf("job %q still present after successful dismiss", id)
 			}
@@ -55,7 +78,7 @@ func TestDismissJob_OnlyTerminalStates(t *testing.T) {
 				t.Errorf("job %q removed despite being in non-terminal state", id)
 			}
 			// Clean up for the next subtest.
-			delete(m.jobs, id)
+			dropJob(m, id)
 		})
 	}
 }
@@ -66,8 +89,8 @@ func TestDismissJob_OnlyTerminalStates(t *testing.T) {
 func TestDismissJob_SurvivesPageRefresh(t *testing.T) {
 	m := newTestJobManager(t, Config{}, nil)
 
-	m.jobs["live"] = &Job{ID: "live", Status: JobStatusRunning, CreatedAt: time.Now()}
-	m.jobs["gone"] = &Job{ID: "gone", Status: JobStatusCompleted, CreatedAt: time.Now()}
+	putJob(m, "live", &Job{ID: "live", Status: JobStatusRunning, CreatedAt: time.Now()})
+	putJob(m, "gone", &Job{ID: "gone", Status: JobStatusCompleted, CreatedAt: time.Now()})
 
 	if !m.DismissJob("gone") {
 		t.Fatal("DismissJob(gone) returned false")
@@ -134,12 +157,12 @@ func TestHandleDismissJob_EndToEnd(t *testing.T) {
 		jobs:   newTestJobManager(t, Config{}, hub),
 		wsHub:  hub,
 	}
-	srv.jobs.jobs["done1"] = &Job{
+	putJob(srv.jobs, "done1", &Job{
 		ID:        "done1",
 		Repo:      "owner/repo",
 		Status:    JobStatusCompleted,
 		CreatedAt: time.Now(),
-	}
+	})
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/jobs/{id}/dismiss", srv.handleDismissJob)
@@ -167,7 +190,7 @@ func TestHandleDismissJob_EndToEnd(t *testing.T) {
 
 	// Attempting to dismiss a running job must fail with 409 so the UI
 	// can distinguish "not yet dismissable" from "not found".
-	srv.jobs.jobs["busy"] = &Job{ID: "busy", Status: JobStatusRunning, CreatedAt: time.Now()}
+	putJob(srv.jobs, "busy", &Job{ID: "busy", Status: JobStatusRunning, CreatedAt: time.Now()})
 	resp2, err := http.Post(ts.URL+"/api/jobs/busy/dismiss", "application/json", nil)
 	if err != nil {
 		t.Fatalf("POST dismiss (busy): %v", err)
@@ -195,12 +218,12 @@ func TestHandleDismissJob_EndToEnd(t *testing.T) {
 func TestDismissJob_BroadcastsRemoval(t *testing.T) {
 	hub := NewWSHub()
 	m := newTestJobManager(t, Config{}, hub)
-	m.jobs["gone"] = &Job{
+	putJob(m, "gone", &Job{
 		ID:        "gone",
 		Repo:      "owner/repo",
 		Status:    JobStatusFailed,
 		CreatedAt: time.Now(),
-	}
+	})
 
 	if res, _ := m.DismissJobResult("gone"); res != DismissJobOK {
 		t.Fatalf("DismissJobResult = %v, want DismissJobOK", res)

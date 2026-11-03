@@ -89,13 +89,15 @@ func (s *Server) broadcastMirrorTask() {
 	if s.wsHub == nil {
 		return
 	}
+	// The copy has to happen inside the lock: the running sync writes these same
+	// fields while holding it, so a snapshot taken after unlocking races with it.
 	s.mirrorTaskMu.Lock()
-	task := s.mirrorTask
+	snapshot := s.mirrorTask.snapshot()
 	s.mirrorTaskMu.Unlock()
-	if task == nil {
+	if snapshot == nil {
 		return
 	}
-	s.wsHub.Broadcast("mirror_task", task.snapshot())
+	s.wsHub.Broadcast("mirror_task", snapshot)
 }
 
 // updateMirrorTask applies one progress report from the running sync and
@@ -252,6 +254,9 @@ func (s *Server) startMirrorSync(w http.ResponseWriter, r *http.Request, mode st
 		return
 	}
 	s.mirrorTask = task
+	// Snapshot before unlocking: the sync started below writes these fields under
+	// the same lock, and the response must be the state as started anyway.
+	started := task.snapshot()
 	s.mirrorTaskMu.Unlock()
 
 	go s.runMirrorTask(task, mirrorSyncOptions{
@@ -264,7 +269,7 @@ func (s *Server) startMirrorSync(w http.ResponseWriter, r *http.Request, mode st
 	}, srcHub, dstHub)
 
 	s.broadcastMirrorTask()
-	writeJSON(w, http.StatusAccepted, map[string]any{"task": task.snapshot()})
+	writeJSON(w, http.StatusAccepted, map[string]any{"task": started})
 }
 
 // runMirrorTask performs the sync and records how it ended. The cache

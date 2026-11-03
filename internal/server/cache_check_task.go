@@ -78,13 +78,15 @@ func (s *Server) broadcastCacheCheck() {
 	if s.wsHub == nil {
 		return
 	}
+	// The copy has to happen inside the lock: the running pass writes these same
+	// fields while holding it, so a snapshot taken after unlocking races with it.
 	s.cacheCheckTaskMu.Lock()
-	task := s.cacheCheckTask
+	snapshot := s.cacheCheckTask.snapshot()
 	s.cacheCheckTaskMu.Unlock()
-	if task == nil {
+	if snapshot == nil {
 		return
 	}
-	s.wsHub.Broadcast("cache_check", task.snapshot())
+	s.wsHub.Broadcast("cache_check", snapshot)
 }
 
 // updateCacheCheck applies one progress report from the running pass. The checker
@@ -196,6 +198,9 @@ func (s *Server) startCacheCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.cacheCheckTask = task
+	// Snapshot before unlocking: the pass started below writes these fields under
+	// the same lock, and the response must be the state as started anyway.
+	started := task.snapshot()
 	s.cacheCheckTaskMu.Unlock()
 
 	go s.runCacheCheck(task, cacheCheckOptions{
@@ -206,7 +211,7 @@ func (s *Server) startCacheCheck(w http.ResponseWriter, r *http.Request) {
 	}, hubDir)
 
 	s.broadcastCacheCheck()
-	writeJSON(w, http.StatusAccepted, map[string]any{"task": task.snapshot()})
+	writeJSON(w, http.StatusAccepted, map[string]any{"task": started})
 }
 
 // runCacheCheck performs the pass and records how it ended.
