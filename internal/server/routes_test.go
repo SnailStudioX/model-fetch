@@ -1943,3 +1943,119 @@ func TestJobDestFreeze_PausedCleanupLegacyAndFlatPreserved(t *testing.T) {
 		}
 	})
 }
+
+// --- LM Studio flat-layout guard and per-request layout pinning ---
+
+func TestLooksLikeLMStudioDir(t *testing.T) {
+	cases := []struct {
+		path string
+		want bool
+	}{
+		{filepath.Join("/home/u", ".lmstudio", "models"), true},
+		{"C:/Users/u/.lmstudio/models", true},
+		{filepath.Join("/home/u", ".cache", "lmstudio", "models"), true},
+		{"/home/u/.LMStudio/models", true},
+		{"/home/u/.lmstudiofoo/models", false},
+		{"/home/u/models", false},
+		{"/mnt/nas/lmstudio/huggingface", false},
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := looksLikeLMStudioDir(c.path); got != c.want {
+			t.Errorf("looksLikeLMStudioDir(%q) = %v, want %v", c.path, got, c.want)
+		}
+	}
+}
+
+func TestResolveDownloadDestination_LMStudioCacheRootGoesFlat(t *testing.T) {
+	root := t.TempDir()
+	lmsDir := filepath.Join(root, ".lmstudio", "models")
+	cfg := Config{CacheDir: lmsDir}
+
+	routeKey, localDir, outputDir, note, err := resolveDownloadDestination(cfg, DownloadRequest{})
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if routeKey != "" {
+		t.Errorf("unexpected routeKey %q", routeKey)
+	}
+	if localDir != outputDir || localDir != lmsDir {
+		t.Errorf("LM Studio cache root must force flat: localDir=%q outputDir=%q", localDir, outputDir)
+	}
+	if note != lmStudioFlatNote {
+		t.Errorf("expected LM Studio note, got %q", note)
+	}
+}
+
+func TestResolveDownloadDestination_LayoutPinning(t *testing.T) {
+	root := t.TempDir()
+	local := filepath.Join(root, "Models")
+	cfg := Config{CacheDir: filepath.Join(root, "cache"), LocalDir: local}
+
+	// "cache" overrides a global local dir: the job lands in the cache.
+	_, localDir, outputDir, _, err := resolveDownloadDestination(cfg, DownloadRequest{Layout: "cache"})
+	if err != nil {
+		t.Fatalf("cache layout: %v", err)
+	}
+	if localDir != "" || outputDir != filepath.Join(root, "cache") {
+		t.Errorf("layout=cache must ignore global LocalDir: localDir=%q outputDir=%q", localDir, outputDir)
+	}
+
+	// "local" without any directory is rejected instead of silently caching.
+	cfgNoLocal := Config{CacheDir: filepath.Join(root, "cache")}
+	if _, _, _, _, err := resolveDownloadDestination(cfgNoLocal, DownloadRequest{Layout: "local", LocalDir: ""}); err == nil {
+		t.Error("layout=local without a directory must error")
+	}
+
+	// An explicit per-request localDir keeps flat even under layout=cache.
+	other := filepath.Join(root, "Other")
+	_, localDir, _, _, err = resolveDownloadDestination(cfg, DownloadRequest{Layout: "cache", LocalDir: other})
+	if err != nil {
+		t.Fatalf("cache layout with explicit localDir: %v", err)
+	}
+	if localDir != other {
+		t.Errorf("explicit localDir should stay flat, got %q", localDir)
+	}
+
+	// Unknown layout values are rejected.
+	if _, _, _, _, err := resolveDownloadDestination(cfg, DownloadRequest{Layout: "sideways"}); err == nil {
+		t.Error("unknown layout must error")
+	}
+}
+
+func TestDestinationPreview(t *testing.T) {
+	root := t.TempDir()
+	local := filepath.Join(root, "models")
+
+	// Flat: preview appends owner/repo under the chosen root.
+	cfg := Config{CacheDir: filepath.Join(root, "cache"), LocalDir: local}
+	dest, note := destinationPreview(cfg, DownloadRequest{Repo: "lmstudio-community/DeepSeek-R1-GGUF"})
+	want := filepath.Join(local, "lmstudio-community", "DeepSeek-R1-GGUF")
+	if dest != want {
+		t.Errorf("flat preview = %q, want %q", dest, want)
+	}
+	if note != "" {
+		t.Errorf("unexpected note %q", note)
+	}
+
+	// LM Studio guard: preview shows the flat path and carries the note.
+	lms := filepath.Join(root, ".lmstudio", "models")
+	cfg2 := Config{CacheDir: lms}
+	dest2, note2 := destinationPreview(cfg2, DownloadRequest{Repo: "owner/repo"})
+	if dest2 != filepath.Join(lms, "owner", "repo") {
+		t.Errorf("LM Studio preview = %q, want flat under %q", dest2, lms)
+	}
+	if note2 != lmStudioFlatNote {
+		t.Errorf("expected LM Studio note in preview, got %q", note2)
+	}
+
+	// Cache mode: preview names the physical hub repo directory.
+	cfg3 := Config{CacheDir: filepath.Join(root, "cache3")}
+	dest3, note3 := destinationPreview(cfg3, DownloadRequest{Repo: "owner/repo"})
+	if wantHub := cacheHubLayoutDir(cfg3.CacheDir, "owner/repo"); dest3 != wantHub {
+		t.Errorf("cache preview = %q, want %q", dest3, wantHub)
+	}
+	if note3 != "" {
+		t.Errorf("unexpected note %q", note3)
+	}
+}

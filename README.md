@@ -27,6 +27,7 @@ ModelFetch is a single Go binary with a built-in web UI (a light theme in the st
 - **Download history and disk levels** — every download is recorded, and the free-space indicator follows the directory you are looking at.
 - **Network fit** — proxy (HTTP/SOCKS5) and token support; organization avatars and other card images are pinned to a reachable host when a mirror endpoint is in use.
 - **Bilingual UI (Chinese / English)** — Chinese by default, switched from the bottom of the sidebar and remembered per browser.
+- **LM Studio-aware destinations** — point a download at an LM Studio `models` directory and the cache layout is refused: files are written flat as `<root>/owner/repo/file.gguf` so the app sees them immediately. Each download can pin its own layout (cache or local folder) and confirms the exact destination path before a byte is fetched.
 - **Single-binary deployment** — the frontend is embedded at build time, no external assets; one Docker volume holds all state.
 
 ## Install
