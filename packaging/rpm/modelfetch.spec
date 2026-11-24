@@ -13,6 +13,10 @@
 #   LICENSE             — Apache-2.0 license (Source3)
 #   README.md           — project readme (Source4)
 
+# Go binaries carry no debug sections; without this the auto-generated
+# debuginfo subpackage fails on an empty file list on Fedora-derived rpm macros.
+%global debug_package %{nil}
+
 %global appname modelfetch
 %global appdesc HuggingFace Model Downloader
 %{!?appversion:%global appversion 0.0.1}
