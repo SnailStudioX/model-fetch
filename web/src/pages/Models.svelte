@@ -12,6 +12,7 @@
   import CapabilityIcons from "../components/CapabilityIcons.svelte";
   import Modal from "../components/Modal.svelte";
   import GpuCombobox from "../components/GpuCombobox.svelte";
+  import StorageControl from "../components/StorageControl.svelte";
 
   const tr = (key) => t(key, ui.lang);
   // The hardware bar is where the hardware override is edited: one box per GPU
@@ -157,6 +158,62 @@
   let routeOverride = $state("");
   const routeKey = $derived(routeOverride || (analysis && !analysis.is_dataset ? routeKeyForAnalysis(analysis) : ""));
 
+  // Per-download storage pin + path confirmation. The layout select and the
+  // folder field travel with the download (not the server settings), so one
+  // model can go to the LM Studio folder while the next uses the cache.
+  let dlLayout = $state("");
+  let dlLocalDir = $state("");
+  let confirmSheet = $state({ open: false, dest: "", note: "", files: 0, size: 0, body: null, after: null });
+
+  // applyStorage attaches the per-request layout/localDir to a download body
+  // and refuses to submit local mode without a folder (the server rejects it
+  // too; failing here keeps the message in the user's language).
+  function applyStorage(body) {
+    if (dlLayout) body.layout = dlLayout;
+    const dir = String(dlLocalDir || "").trim();
+    if (dlLayout === "local" && !dir) {
+      toast(tr("models.localDirNeeded"), "info");
+      return false;
+    }
+    if (dir) body.localDir = dir;
+    return true;
+  }
+
+  // confirmAndStart runs the disk check against the FINAL body (the server
+  // resolves the same destination for it), previews the exact landing folder,
+  // and only then opens the confirmation sheet.
+  async function confirmAndStart(body, after) {
+    if (!(await checkDownloadDiskSpace(body))) return;
+    let plan = null;
+    try {
+      plan = await previewPlan(body);
+    } catch {}
+    confirmSheet = {
+      open: true,
+      dest: plan?.destination || "",
+      note: plan?.destinationWarning || "",
+      files: plan?.totalFiles || 0,
+      size: plan?.totalSize || 0,
+      body,
+      after
+    };
+  }
+
+  function finishConfirm() {
+    const sheet = confirmSheet;
+    confirmSheet = { open: false, dest: "", note: "", files: 0, size: 0, body: null, after: null };
+    startDownload(sheet.body)
+      .then((result) => {
+        if (result.message) {
+          toast(result.message, "info");
+          return;
+        }
+        if (sheet.note) toast(sheet.note, "info");
+        sheet.after?.();
+      })
+      .catch((err) => toast(tr("common.failed") + ": " + err.message, "error"));
+  }
+
   function groupItems(items) {
     const categories = {};
     for (const item of items) {
@@ -220,27 +277,22 @@
     const body = { repo: dlRepo, revision, dataset: Boolean(analysis.is_dataset), filters: filterValue ? [filterValue] : [], exactMatch: Boolean(filterValue) };
     if (routeKey) body.routeKey = routeKey;
     if (item?.upstream_repo) body.localRepo = analysis.repo;
-    try {
-      if (!(await checkDownloadDiskSpace(body))) return;
-      const result = await startDownload(body);
-      if (result.message) {
-        toast(result.message, "info");
-        return;
-      }
+    if (!applyStorage(body)) return;
+    await confirmAndStart(body, () => {
       setDlStatus(analysis.repo, filterValue, "queued");
       toast(tr("models.queued") + ": " + (item?.label || filterValue), "success");
-    } catch (err) {
-      toast(tr("common.failed") + ": " + err.message, "error");
-    }
+    });
   }
 
   async function preview(item) {
     if (!analysis) return;
     const body = { repo: analysis.repo, revision: analysis.branch || "main", dataset: Boolean(analysis.is_dataset), filters: item && item.filter_value ? [item.filter_value] : [], exactMatch: Boolean(item && item.filter_value) };
     if (routeKey) body.routeKey = routeKey;
+    if (!applyStorage(body)) return;
     try {
       const result = await previewPlan(body);
-      toast(tr("models.plan") + ": " + (result.totalFiles || 0) + " files · " + (result.totalSizeHuman || formatBytes(result.totalSize || 0)));
+      toast(tr("models.plan") + ": " + (result.totalFiles || 0) + " files · " + (result.totalSizeHuman || formatBytes(result.totalSize || 0)) + (result.destination ? " → " + result.destination : ""));
+      if (result.destinationWarning) toast(result.destinationWarning, "info");
     } catch (err) {
       toast(err.message || tr("common.error"), "error");
     }
@@ -314,14 +366,11 @@
       exactMatch: filters.length > 0
     };
     if (!analysis.is_dataset && routeKey) body.routeKey = routeKey;
-    try {
-      if (!(await checkDownloadDiskSpace(body))) return;
-      await startDownload(body);
+    if (!applyStorage(body)) return;
+    await confirmAndStart(body, () => {
       toast(tr("models.downloadStarted") + ": " + analysis.repo, "success");
       ui.page = "jobs";
-    } catch (err) {
-      toast(tr("common.failed") + ": " + err.message, "error");
-    }
+    });
   }
 
   let debounceTimer = null;
@@ -669,15 +718,16 @@
             {#if (analysis.selectable_items || []).length}
               <div class="analysis-section">
                 <div class="selectable-items quant-list" id="selectableItems">
-                  {#if routeOptions.length && !analysis.is_dataset}
+                  {#if !analysis.is_dataset}
                     <div class="quant-category">
                       <div class="quant-category-title">{tr("models.saveTo")}</div>
                       <div class="quant-route-control">
-                        <select class="search-select" id="quantRouteSelect" style="display:block; width:100%; max-width:320px; margin:4px 0 0 12px" aria-label={tr("models.routeFolderLabel")} value={routeKey} onchange={(event) => (routeOverride = event.target.value)}>
+                        {#if routeOptions.length}<select class="search-select" id="quantRouteSelect" style="display:block; width:100%; max-width:320px; margin:4px 0 0 12px" aria-label={tr("models.routeFolderLabel")} value={routeKey} onchange={(event) => (routeOverride = event.target.value)}>
                           <option value="">{tr("models.serverDefault")}</option>
                           {#each routeOptions as option}<option value={option.key}>{option.label}</option>{/each}
-                        </select>
+                        </select>{/if}
                         <p class="form-hint" style="margin-top:4px">{tr("models.routeHint")}</p>
+                        <StorageControl layout={dlLayout} localDir={dlLocalDir} />
                       </div>
                     </div>
                   {/if}
@@ -742,15 +792,16 @@
               {@const files = analysis.files.filter((file) => { const name = (file.path || file.name || "").toLowerCase(); return (!name.endsWith(".md") && !name.endsWith(".gitattributes") && !name.endsWith(".txt")) || analysis.files.length <= 5; })}
               {#if files.length}
                 <div class="analysis-section">
-                  {#if routeOptions.length && !analysis.is_dataset}
+                  {#if !analysis.is_dataset}
                     <div class="quant-category">
                       <div class="quant-category-title">{tr("models.saveTo")}</div>
                       <div class="quant-route-control">
-                        <select class="search-select" id="nonSelectableRoute" style="display:block; width:100%; max-width:320px; margin:4px 0 0 12px" aria-label={tr("models.routeFolderLabel")} value={routeKey} onchange={(event) => (routeOverride = event.target.value)}>
+                        {#if routeOptions.length}<select class="search-select" id="nonSelectableRoute" style="display:block; width:100%; max-width:320px; margin:4px 0 0 12px" aria-label={tr("models.routeFolderLabel")} value={routeKey} onchange={(event) => (routeOverride = event.target.value)}>
                           <option value="">{tr("models.serverDefault")}</option>
                           {#each routeOptions as option}<option value={option.key}>{option.label}</option>{/each}
-                        </select>
+                        </select>{/if}
                         <p class="form-hint" style="margin-top:4px">{tr("models.routeHint")}</p>
+                        <StorageControl layout={dlLayout} localDir={dlLocalDir} />
                       </div>
                     </div>
                   {/if}
@@ -838,5 +889,19 @@
   <div class="form-actions">
     <button class="btn btn-secondary" type="button" onclick={() => (showAdvanced = false)}>{tr("common.cancel")}</button>
     <button class="btn btn-primary" type="button" onclick={applyAdvancedOptions}>{tr("models.apply")}</button>
+  </div>
+</Modal>
+<Modal title={tr("models.confirmTitle")} open={confirmSheet.open} onclose={() => (confirmSheet.open = false)}>
+  <p class="form-hint">{tf("models.confirmSummary", ui.lang, { files: confirmSheet.files, size: formatBytes(confirmSheet.size) })}</p>
+  {#if confirmSheet.dest}
+    <p class="form-hint" style="margin:8px 0 2px">{tr("models.saveTo")}</p>
+    <code class="storage-path" style="display:block; word-break:break-all">{confirmSheet.dest}</code>
+  {/if}
+  {#if confirmSheet.note}
+    <p class="form-hint" style="margin-top:8px">{confirmSheet.note}</p>
+  {/if}
+  <div class="form-actions">
+    <button class="btn btn-secondary" type="button" onclick={() => (confirmSheet.open = false)}>{tr("common.cancel")}</button>
+    <button class="btn btn-primary" type="button" onclick={finishConfirm}>{tr("models.confirmStart")}</button>
   </div>
 </Modal>

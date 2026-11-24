@@ -19,6 +19,13 @@ type DownloadRequest struct {
 	// writing real files (flat mode) instead of the HF cache layout.
 	// When empty, the server-global LocalDir (if set) or HF cache is used.
 	LocalDir string `json:"localDir,omitempty"`
+	// Layout pins the storage layout for this request: "cache" (HF
+	// hub/{blobs,refs,snapshots}), "local" (real files under a directory),
+	// or empty to follow the server-global setting. "local" requires a
+	// directory from localDir or a route. Regardless of this field, a
+	// destination inside an LM Studio tree is always written flat so the
+	// app can load the files.
+	Layout string `json:"layout,omitempty"`
 	// LocalRepo overrides the folder name used for storing downloaded files.
 	// When set, files fetched from Repo are stored as if they belong to LocalRepo.
 	// Used when downloading upstream mmproj files alongside the current model's quants.
@@ -37,6 +44,13 @@ type PlanResponse struct {
 	Files      []PlanFile `json:"files"`
 	TotalSize  int64      `json:"totalSize"`
 	TotalFiles int        `json:"totalFiles"`
+	// Destination is the exact folder this request's files would be written
+	// to, resolved with the same rules job creation uses. Shown before the
+	// download starts so the path can be confirmed.
+	Destination string `json:"destination,omitempty"`
+	// DestinationWarning explains a destination rewrite the server applied
+	// automatically (e.g. the LM Studio flat-layout guard).
+	DestinationWarning string `json:"destinationWarning,omitempty"`
 }
 
 // PlanFile represents a file in the plan.

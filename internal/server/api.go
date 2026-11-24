@@ -230,6 +230,9 @@ func (s *Server) handlePlanInternal(w http.ResponseWriter, req DownloadRequest) 
 		TotalSize:  totalSize,
 		TotalFiles: len(files),
 	}
+	// Destination preview uses the same resolution job creation will use, so
+	// what the UI confirms before download is exactly where files land.
+	resp.Destination, resp.DestinationWarning = destinationPreview(cfg, req)
 
 	writeJSON(w, http.StatusOK, resp)
 }

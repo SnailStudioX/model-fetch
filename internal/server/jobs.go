@@ -521,7 +521,7 @@ func (m *JobManager) CreateJob(req DownloadRequest) (*Job, bool, error) {
 		revision = hubsource.Resolve(cfg.Source, cfg.Endpoint).DefaultRevision()
 	}
 
-	routeKey, effectiveLocalDir, outputDir, err := resolveDownloadDestination(cfg, req)
+	routeKey, effectiveLocalDir, outputDir, destNote, err := resolveDownloadDestination(cfg, req)
 	if err != nil {
 		return nil, false, err
 	}
@@ -605,6 +605,12 @@ func (m *JobManager) CreateJob(req DownloadRequest) (*Job, bool, error) {
 		// can read it without a nil check; the tracker map is left
 		// nil until runJob wires it.
 		partialFilesMu: &sync.Mutex{},
+	}
+	// A destination rewrite worth surfacing in the UI (today: the LM Studio
+	// flat-mode guard). The job records it so the Jobs page can explain why
+	// files landed somewhere other than the configured cache.
+	if destNote != "" {
+		job.DestinationWarning = destNote
 	}
 	// Validate the exact frozen output base using the same pure constructor as
 	// the downloader before any reservation check can inspect filesystem state.

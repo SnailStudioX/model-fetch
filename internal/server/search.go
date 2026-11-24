@@ -419,7 +419,7 @@ func (s *Server) handleDownloadDiskFree(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	cfg := s.snapshotConfig()
-	_, localDir, path, err := resolveDownloadDestination(cfg, req)
+	_, localDir, path, _, err := resolveDownloadDestination(cfg, req)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid routeKey", "routeKey must be one of the configured route keys")
 		return
