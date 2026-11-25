@@ -11,6 +11,7 @@
   let hint = $state("");
   let busy = $state(false);
   let picking = $state(false);
+  let autoPicked = $state(false);
   let jump = $state("");
   // Roots outlive one failed listing: after a path that cannot be read, the drive row
   // is how the user gets back to a folder that can.
@@ -27,7 +28,17 @@
       const result = await browseDirs(target);
       listing = result;
       if (Array.isArray(result.roots) && result.roots.length) roots = result.roots;
-      if (result.native_pick) nativePick = true;
+      if (result.native_pick) {
+        nativePick = true;
+        // The person asked for the filesystem, so when the server can show the
+        // operating system dialog, open it straight away instead of making them
+        // click through a web listing first. The listing stays as the fallback
+        // for a cancelled dialog or a server without a desktop session.
+        if (!autoPicked) {
+          autoPicked = true;
+          pickNative();
+        }
+      }
     } catch (err) {
       listing = null;
       error = err.message || tr("common.error");
