@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -190,11 +191,29 @@ func shouldSkipLocal(it PlanItem, dst string) (bool, string, error) {
 	return shouldSkipLocalCtx(context.Background(), it, dst)
 }
 
+// errFileConflict reports that the destination already holds a file whose
+// content provably differs from the hub's (the source supplied a SHA-256 and
+// the existing file does not match it). The downloader refuses to overwrite
+// such a file: it may be a model the user placed there themselves under the
+// same name, and silently replacing it destroys data the job was never asked
+// to touch. The caller surfaces this as a job error telling the user to delete
+// or rename the file and retry.
+var errFileConflict = errors.New("already exists with different content")
+
+// fileConflictError builds the conflict error for one destination. The message
+// is user-facing (it lands in the job's error field), so it names the action
+// that resolves it rather than just the mismatch.
+func fileConflictError(dst string) error {
+	return fmt.Errorf("%w: %s exists but its content differs from the hub copy; delete or rename it and retry", errFileConflict, filepath.Base(dst))
+}
+
 // shouldSkipLocalCtx is shouldSkipLocal bounded by ctx. A multi-GB LFS hash can
 // otherwise run to completion after a sibling's permanent error cancelled the
 // job; with ctx it aborts promptly. Successful skip behavior is unchanged: a
 // cancelled ctx returns ctx.Err() so the caller surfaces the cancellation
-// instead of skipping.
+// instead of skipping. When the source supplied a SHA-256 and the existing
+// file provably differs from it, the file is not re-downloaded over: the
+// conflict is reported instead (see errFileConflict).
 func shouldSkipLocalCtx(ctx context.Context, it PlanItem, dst string) (bool, string, error) {
 	fi, err := os.Stat(dst)
 	if err != nil {
@@ -202,24 +221,31 @@ func shouldSkipLocalCtx(ctx context.Context, it PlanItem, dst string) (bool, str
 		return false, "", nil
 	}
 
+	// A known digest makes size proof enough: a different size cannot be the
+	// same content, and overwriting a user file of the same name is exactly
+	// what the conflict guard exists to prevent.
+	if it.SHA256 != "" && it.Size > 0 && fi.Size() != it.Size {
+		return false, "", fileConflictError(dst)
+	}
+
 	// Quick size check first: if known and different, don't skip
 	if it.Size > 0 && fi.Size() != it.Size {
 		return false, "", nil
 	}
 
-	// LFS with known sha: compute and compare
-	if it.LFS && it.SHA256 != "" {
+	// Known sha (LFS or any hub that reports a content digest): compute and
+	// compare. A match skips; a mismatch is a conflict, not a re-download.
+	if it.SHA256 != "" {
 		if err := verifySHA256Ctx(ctx, dst, it.SHA256); err == nil {
 			return true, "sha256 match", nil
 		} else if verr := ctx.Err(); verr != nil {
 			// Cancelled mid-verify: surface the cancellation, do not skip.
 			return false, "", verr
 		}
-		// size matched but sha mismatched -> re-download
-		return false, "", nil
+		return false, "", fileConflictError(dst)
 	}
 
-	// Non-LFS (or unknown sha): size match is sufficient
+	// Unknown sha: size match is sufficient
 	if it.Size > 0 && fi.Size() == it.Size {
 		return true, "size match", nil
 	}

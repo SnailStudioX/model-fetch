@@ -245,7 +245,7 @@ test("every download folder on the jobs page can be picked, not only typed", asy
 // The system dialog is opened by the server, which owns the filesystem, and hands
 // back a real absolute path. Two answers matter: the folder that was picked, and a
 // cancellation that must not look like a picked empty path.
-test("the system folder dialog fills the field with the folder the OS returned", async () => {
+test("the system folder dialog opens on its own and fills the field with the folder the OS returned", async () => {
   resetState();
   const component = mount(Cache, { target: document.body });
   await flush();
@@ -261,11 +261,9 @@ test("the system folder dialog fills the field with the folder the OS returned",
   jump.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
   await flush();
 
-  const nativeButton = document.querySelector(".folder-picker-actions .btn-primary");
-  expect(nativeButton.textContent.trim()).toBe("Choose in system dialog");
-  nativeButton.click();
-  await flush();
-
+  // Native-first: a listing that advertises a desktop session opens the OS
+  // dialog by itself — no extra click — and the folder it returns lands in
+  // the field as the picker closes.
   expect(pickCalls).toEqual([{ start: "C:\\native", method: "POST" }]);
   expect(document.querySelector("#cacheDirInput").value).toBe("D:\\Models");
   expect(document.querySelector(".folder-picker")).toBe(null);
@@ -327,7 +325,9 @@ test("the mirror target path can be picked too", async () => {
 test("every folder field on the pages that write to disk has a browse button", async () => {
   const pages = [
     { name: "cache", page: Cache, fields: 3 },
-    { name: "jobs", page: Jobs, fields: ROUTE_LABELS.length + 1 },
+    // Jobs: the download folder (always visible now that the server is
+    // local-first), the per-type folders, and the preset root.
+    { name: "jobs", page: Jobs, fields: ROUTE_LABELS.length + 2 },
     { name: "mirror", page: Mirror, fields: 1 }
   ];
 

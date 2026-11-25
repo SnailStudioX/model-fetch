@@ -370,9 +370,11 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 
 	cacheDir := cfg.cacheRoot()
 
-	storageMode := "cache"
-	if cfg.LocalDir != "" {
-		storageMode = "local"
+	// local-first: the cache layout is the opt-in advanced mode, so the
+	// effective mode is "cache" only when the server explicitly selected it.
+	storageMode := "local"
+	if cfg.StorageMode == "cache" {
+		storageMode = "cache"
 	}
 
 	resp := SettingsResponse{
@@ -402,6 +404,7 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 		ActiveHubSource: cfg.ActiveHub,
 		StorageMode:     storageMode,
 		LocalDir:        cfg.LocalDir,
+		DefaultLocalDir: defaultLocalDir(),
 		LocalScanDirs:   cfg.LocalScanDirs,
 		DownloadRoutes:  cfg.DownloadRoutes,
 		Hardware:        cfg.Hardware,
@@ -430,6 +433,11 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		Token         *string  `json:"token,omitempty"`
 		CacheDir      *string  `json:"cacheDir,omitempty"`
 		LocalDir      *string  `json:"localDir,omitempty"`
+		// StorageMode selects the server-wide download layout: "cache" opts
+		// into the advanced HF cache mode, "local"/"" is the flat default.
+		// Anything else is rejected so a typo cannot silently switch the
+		// whole server to the cache layout.
+		StorageMode   *string  `json:"storageMode,omitempty"`
 		LocalScanDirs []string `json:"localScanDirs,omitempty"`
 		// DownloadRoutes, when present, replaces the route map. Unknown keys
 		// outside the closed set (routes.go) are dropped rather than rejected;
@@ -619,6 +627,21 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		newVerify = mode
 	}
+	// The storage mode is a closed set ("cache" | "local" | ""); an unknown
+	// spelling must not be stored and read back as cache mode on the next start.
+	newStorageMode := cur.StorageMode
+	if req.StorageMode != nil {
+		mode := strings.ToLower(strings.TrimSpace(*req.StorageMode))
+		switch mode {
+		case "", "local":
+			mode = ""
+		case "cache":
+		default:
+			writeError(w, http.StatusBadRequest, "Invalid storageMode", fmt.Sprintf("unknown storage mode %q; expected cache or local", *req.StorageMode))
+			return
+		}
+		newStorageMode = mode
+	}
 
 	// Phase 2: build the new config on a local copy under withConfig (which
 	// takes the write lock for the whole mutation, so a concurrent read sees
@@ -640,6 +663,10 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.LocalDir != nil {
 			c.LocalDir = strings.TrimSpace(*req.LocalDir)
+		}
+		if req.StorageMode != nil {
+			// Validated in Phase 1; a rejection there cannot abort this closure.
+			c.StorageMode = newStorageMode
 		}
 		if req.LocalScanDirs != nil {
 			c.LocalScanDirs = cleanPathList(req.LocalScanDirs)
@@ -802,6 +829,7 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	fileCfg := &ConfigFile{
 		CacheDir:           finalCfg.CacheDir,
 		LocalDir:           finalCfg.LocalDir,
+		StorageMode:        finalCfg.StorageMode,
 		LocalScanDirs:      finalCfg.LocalScanDirs,
 		Connections:        finalCfg.Concurrency,
 		MaxActive:          finalCfg.MaxActive,

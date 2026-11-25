@@ -711,7 +711,9 @@ func TestSelectedDeleteConflictsWithHFWriterSnapshotPrescan(t *testing.T) {
 	}
 	hf, started, release := blockingRevisionServer(t, "model-Q4_K_M.gguf")
 	defer hf.Close()
-	s := newTestServerWithConfig(t, Config{CacheDir: storage, LocalScanDirs: []string{rd.SnapshotsDir()}, Endpoint: hf.URL})
+	// The HF writer's snapshot destination is cache-layout state: pin the
+	// advanced cache mode so the prescan writer crosses the snapshot tree.
+	s := newTestServerWithConfig(t, Config{CacheDir: storage, StorageMode: "cache", LocalScanDirs: []string{rd.SnapshotsDir()}, Endpoint: hf.URL})
 	releaseDelete, ok := s.jobs.reserveSelectedGGUF([]string{selected})
 	if !ok {
 		t.Fatal("could not reserve selected snapshot for admission check")
@@ -780,7 +782,9 @@ func TestCompletePlanUsesActualSnapshotDestinations(t *testing.T) {
 			var releaseOnce sync.Once
 			releaseGate := func() { releaseOnce.Do(release) }
 			defer releaseGate()
-			s := newTestServerWithConfig(t, Config{CacheDir: storage, LocalScanDirs: []string{scanRoot}, Endpoint: hf.URL})
+			// Snapshot destinations are cache-layout state: pin the advanced
+			// cache mode so the planned writes land in the snapshot tree.
+			s := newTestServerWithConfig(t, Config{CacheDir: storage, StorageMode: "cache", LocalScanDirs: []string{scanRoot}, Endpoint: hf.URL})
 			job, _, err := s.jobs.CreateJob(DownloadRequest{Repo: "upstream/source", LocalRepo: "owner/model"})
 			if err != nil {
 				t.Fatal(err)
@@ -872,7 +876,9 @@ func TestPaginatedPlanReservesLaterPageBeforeTransfer(t *testing.T) {
 	defer openPage()
 	defer openTransfer()
 
-	s := newTestServerWithConfig(t, Config{CacheDir: storage, LocalScanDirs: []string{scanRoot}, Endpoint: hf.URL})
+	// Paginated plan reservations cover snapshot destinations: pin the
+	// advanced cache mode for the writer under test.
+	s := newTestServerWithConfig(t, Config{CacheDir: storage, StorageMode: "cache", LocalScanDirs: []string{scanRoot}, Endpoint: hf.URL})
 	job, _, err := s.jobs.CreateJob(DownloadRequest{
 		Repo: "upstream/source", LocalRepo: "owner/model", Filters: []string{"q4_k_m"},
 	})
@@ -1210,7 +1216,9 @@ func TestSelectedDeleteBlocksPrescanWriterWhenAliasChangesExcludedPath(t *testin
 	mustSymlink(t, blocked, filepath.Join(repoDir, "live"))
 	hf, started, release := blockingRevisionServer(t, "live/model-Q4_K_M.gguf")
 	defer hf.Close()
-	s := newTestServerWithConfig(t, Config{CacheDir: storage, Endpoint: hf.URL})
+	// The prescan writer's repository scope is cache-layout state: pin the
+	// advanced cache mode.
+	s := newTestServerWithConfig(t, Config{CacheDir: storage, StorageMode: "cache", Endpoint: hf.URL})
 	job, _, err := s.jobs.CreateJob(DownloadRequest{Repo: "upstream/source", LocalRepo: "o/m", Filters: []string{"Q4_K_M"}, Excludes: []string{"blocked"}})
 	if err != nil {
 		t.Fatal(err)
@@ -1282,7 +1290,9 @@ func TestAliasedExcludedRemotePathStillBlocksSelectedEntry(t *testing.T) {
 
 	runHF, started, releaseRun := blockingRevisionServer(t, "model-Q4_K_M.gguf")
 	defer runHF.Close()
-	s := newTestServerWithConfig(t, Config{CacheDir: storage, Endpoint: runHF.URL, MaxActive: 1})
+	// Production-path (cache-layout) writers are what this admission test
+	// exercises: pin the advanced cache mode.
+	s := newTestServerWithConfig(t, Config{CacheDir: storage, StorageMode: "cache", Endpoint: runHF.URL, MaxActive: 1})
 	blocker, _, err := s.jobs.CreateJob(DownloadRequest{Repo: "owner/blocker"})
 	if err != nil {
 		t.Fatal(err)

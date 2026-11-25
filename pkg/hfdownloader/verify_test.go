@@ -4,6 +4,7 @@
 package hfdownloader
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -219,13 +220,14 @@ func TestShouldSkipLocal(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Wrong hash but same size
+		// Wrong hash but same size: the existing file provably differs from
+		// the hub copy, so it is a content conflict, not a re-download.
 		wrongHash := "0000000000000000000000000000000000000000000000000000000000000000"
 		item := PlanItem{RelativePath: "test.txt", Size: int64(len(content)), LFS: true, SHA256: wrongHash}
 
 		skip, _, err := shouldSkipLocal(item, filePath)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if !errors.Is(err, errFileConflict) {
+			t.Fatalf("err = %v, want errFileConflict", err)
 		}
 		if skip {
 			t.Error("should not skip when LFS SHA256 mismatches")
@@ -268,6 +270,72 @@ func TestShouldSkipLocal(t *testing.T) {
 		// Actually, size 0 != 4, so it won't match
 		if skip {
 			t.Error("should not skip when expected size is 0")
+		}
+	})
+}
+
+// TestShouldSkipLocalFileConflict covers the flat-mode conflict guard: when
+// the source supplies a SHA-256 and the file already at the destination
+// provably differs from the hub copy, the downloader must refuse the file
+// (errFileConflict) instead of silently overwriting a file the user may have
+// placed there under the same name.
+func TestShouldSkipLocalFileConflict(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	t.Run("same size wrong sha256", func(t *testing.T) {
+		content := []byte("user content")
+		filePath := filepath.Join(tmpDir, "conflictSameSize.txt")
+		if err := os.WriteFile(filePath, content, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		wrongHash := "1111111111111111111111111111111111111111111111111111111111111111"
+		item := PlanItem{RelativePath: "model.gguf", Size: int64(len(content)), SHA256: wrongHash}
+
+		skip, reason, err := shouldSkipLocal(item, filePath)
+		if !errors.Is(err, errFileConflict) {
+			t.Fatalf("err = %v, want errFileConflict", err)
+		}
+		if skip || reason != "" {
+			t.Errorf("skip=%v reason=%q, want no skip on conflict", skip, reason)
+		}
+	})
+
+	t.Run("known sha256 with different size", func(t *testing.T) {
+		filePath := filepath.Join(tmpDir, "conflictSize.txt")
+		if err := os.WriteFile(filePath, []byte("short"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		// A known digest makes the size difference proof enough: the file
+		// cannot be the hub copy and must not be overwritten.
+		item := PlanItem{RelativePath: "model.gguf", Size: 1000, SHA256: "2222222222222222222222222222222222222222222222222222222222222222"}
+
+		skip, _, err := shouldSkipLocal(item, filePath)
+		if !errors.Is(err, errFileConflict) {
+			t.Fatalf("err = %v, want errFileConflict", err)
+		}
+		if skip {
+			t.Error("should not skip a conflicting file")
+		}
+	})
+
+	t.Run("unknown sha256 size mismatch stays a re-download", func(t *testing.T) {
+		filePath := filepath.Join(tmpDir, "noHashSize.txt")
+		if err := os.WriteFile(filePath, []byte("short"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		// Without a digest there is no proof of difference: the old
+		// re-download path (no skip, no error) must stay intact.
+		item := PlanItem{RelativePath: "model.gguf", Size: 1000}
+
+		skip, _, err := shouldSkipLocal(item, filePath)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if skip {
+			t.Error("should not skip when size differs")
 		}
 	})
 }

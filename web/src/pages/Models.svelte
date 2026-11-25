@@ -158,23 +158,17 @@
   let routeOverride = $state("");
   const routeKey = $derived(routeOverride || (analysis && !analysis.is_dataset ? routeKeyForAnalysis(analysis) : ""));
 
-  // Per-download storage pin + path confirmation. The layout select and the
-  // folder field travel with the download (not the server settings), so one
-  // model can go to the LM Studio folder while the next uses the cache.
-  let dlLayout = $state("");
+  // Per-download storage pin + path confirmation. The folder field travels
+  // with the download (not the server settings), so one model can go to the
+  // LM Studio folder while the next follows the server default.
   let dlLocalDir = $state("");
   let confirmSheet = $state({ open: false, dest: "", note: "", files: 0, size: 0, body: null, after: null });
 
-  // applyStorage attaches the per-request layout/localDir to a download body
-  // and refuses to submit local mode without a folder (the server rejects it
-  // too; failing here keeps the message in the user's language).
+  // applyStorage attaches the per-request folder pin to a download body. An
+  // empty folder is not an error any more: the server is local-first, so it
+  // resolves the default destination itself.
   function applyStorage(body) {
-    if (dlLayout) body.layout = dlLayout;
     const dir = String(dlLocalDir || "").trim();
-    if (dlLayout === "local" && !dir) {
-      toast(tr("models.localDirNeeded"), "info");
-      return false;
-    }
     if (dir) body.localDir = dir;
     return true;
   }
@@ -727,7 +721,7 @@
                           {#each routeOptions as option}<option value={option.key}>{option.label}</option>{/each}
                         </select>{/if}
                         <p class="form-hint" style="margin-top:4px">{tr("models.routeHint")}</p>
-                        <StorageControl layout={dlLayout} localDir={dlLocalDir} />
+                        <StorageControl localDir={dlLocalDir} />
                       </div>
                     </div>
                   {/if}
@@ -801,7 +795,7 @@
                           {#each routeOptions as option}<option value={option.key}>{option.label}</option>{/each}
                         </select>{/if}
                         <p class="form-hint" style="margin-top:4px">{tr("models.routeHint")}</p>
-                        <StorageControl layout={dlLayout} localDir={dlLocalDir} />
+                        <StorageControl localDir={dlLocalDir} />
                       </div>
                     </div>
                   {/if}

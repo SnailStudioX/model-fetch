@@ -12,6 +12,7 @@ import (
 	"log"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -1364,9 +1365,17 @@ func applyJobProgress(job *Job, evt hfdownloader.ProgressEvent, now time.Time) {
 		}
 
 	case "file_done":
+		// The downloader marks an already-present file with a "skip (...)"
+		// message on file_done. Record it as "skipped" rather than
+		// "complete" so the job result shows which files were reused and
+		// which were actually transferred this run.
+		status := "complete"
+		if strings.HasPrefix(evt.Message, "skip") {
+			status = "skipped"
+		}
 		for i := range job.Files {
 			if job.Files[i].Path == evt.Path {
-				job.Files[i].Status = "complete"
+				job.Files[i].Status = status
 				job.Files[i].Downloaded = job.Files[i].TotalBytes
 				break
 			}

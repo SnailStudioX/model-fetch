@@ -31,6 +31,11 @@
   // to be able to return them to defaults, so it authors the defaults into the
   // next save instead of leaving them out of every save.
   let storageReset = $state(null);
+  // The download layout is local-first now: "local" writes real files into the
+  // download folder, and "cache" (the HF hub layout) is an advanced opt-in for
+  // interop with huggingface-cli-style tools. The card below is the only place
+  // that edits it, so an ordinary save authors it like the proxy fields.
+  let advanced = $state({ storageMode: "local" });
   let showToken = $state(false);
   let showProxyPassword = $state(false);
 
@@ -46,6 +51,7 @@
     form.proxyUsername = settings.proxy?.username || "";
     form.proxyNoProxy = settings.proxy?.noProxy || "";
     form.proxyNoEnvProxy = Boolean(settings.proxy?.noEnvProxy);
+    advanced.storageMode = settings.storageMode === "cache" ? "cache" : "local";
   });
 
   // hubDraft copies the saved list into editable tabs. tokenBaseline keeps the
@@ -158,6 +164,9 @@
     tokenReset = true;
     transportReset = { connections: 8, maxActive: 3, maxSpeed: "", retries: 4, verify: "size" };
     storageReset = { cacheDir: "", localDir: "", localScanDirs: [], downloadRoutes: {} };
+    // The layout is authored by the advanced card's own state, so Reset only
+    // needs to move the control back to the default.
+    advanced.storageMode = "local";
     form.proxyUrl = "";
     form.proxyUsername = "";
     form.proxyPassword = "";
@@ -192,6 +201,9 @@
       // The list is authoritative: the server keeps each entry's stored token
       // unless this request authored a new one.
       hubSources: hubs.map(hubRequestBody),
+      // The advanced card owns the layout, so every save authors it; the other
+      // storage fields stay reset-only because their controls live elsewhere.
+      storageMode: advanced.storageMode,
       ...extra
     };
 
@@ -359,6 +371,38 @@
             </label>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="card settings-card settings-card-wide">
+      <div class="card-header">
+        <span class="card-icon"><Icon name="gear" size={24} /></span>
+        <h3>{tr("settings.advanced")}</h3>
+      </div>
+      <div class="card-body settings-rows">
+        <div class="settings-row">
+          <label for="storageMode" title={tr("settings.storageModeHint")}>{tr("settings.storageMode")}</label>
+          <div class="settings-control settings-control-md">
+            <select id="storageMode" bind:value={advanced.storageMode}>
+              <option value="local">{tr("settings.storageModeLocal")}</option>
+              <option value="cache">{tr("settings.storageModeCache")}</option>
+            </select>
+          </div>
+        </div>
+        {#if advanced.storageMode === "cache"}
+          <div class="settings-row">
+            <label for="advancedHubDir" title={tr("settings.hubDirHint")}>{tr("settings.hubDir")}</label>
+            <div class="settings-control">
+              <input type="text" id="advancedHubDir" class="path-input" readonly spellcheck="false" value={settings.effectiveHubDir || ""} />
+            </div>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label-spacer"></span>
+            <div class="settings-control">
+              <p class="form-hint">{tr("settings.storageModeCacheHint")}</p>
+            </div>
+          </div>
+        {/if}
       </div>
     </div>
   </div>

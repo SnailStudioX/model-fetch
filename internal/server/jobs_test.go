@@ -17,8 +17,11 @@ import (
 func TestJobManager_CreateJob(t *testing.T) {
 	testCacheDir := t.TempDir()
 
+	// The HF cache destination under test is the advanced cache mode; the
+	// server default is local-first flat.
 	cfg := Config{
 		CacheDir:    testCacheDir,
+		StorageMode: "cache",
 		Concurrency: 2,
 		MaxActive:   1,
 	}

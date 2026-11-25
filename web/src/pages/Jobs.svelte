@@ -101,43 +101,23 @@
 
   // The download target moved here too: "where will this file land" is asked
   // while a job is being started, not while a form is being filled. The server
-  // has no layout flag - a non-empty localDir IS local mode - so the select
-  // posts that one field, and switching to local mode without a folder only
-  // opens the folder field instead of writing an empty target.
-  let storage = $state({ layout: "cache", localDir: "", routes: {}, presetRoot: "" });
+  // is local-first: a download writes flat into this folder, and an empty
+  // folder falls back to the built-in models directory, so this page only
+  // edits the folder itself. The cache layout is an advanced server-wide mode
+  // now, configured on the Settings page, so no layout control lives here.
+  let storage = $state({ localDir: "", routes: {}, presetRoot: "" });
   let picker = $state({ open: false, path: "", apply: null });
   $effect(() => {
     const settings = ui.settings;
     if (!settings) return;
-    storage.layout = settings.storageMode || "cache";
     storage.localDir = settings.localDir || "";
     storage.routes = { ...(settings.downloadRoutes || {}) };
   });
 
-  // The readout answers "where does a new download go right now": the Hub cache
-  // the server resolved, or the local folder local mode writes into.
-  const destination = $derived(storage.layout === "local" ? String(storage.localDir || "").trim() : String(ui.settings?.effectiveHubDir || "").trim());
-
-  async function applyLayout(layout) {
-    if (layout === storage.layout) return;
-    storage.layout = layout;
-    const localDir = String(storage.localDir || "").trim();
-    if (layout === "local" && !localDir) {
-      toast(tr("jobs.localDirRequired"), "info");
-      return;
-    }
-    try {
-      await saveSettings({ localDir: layout === "local" ? localDir : "" });
-    } catch (err) {
-      toast(err.message || tr("common.error"), "error");
-      await loadSettings().catch(() => {});
-    }
-  }
-
-  // Committing the folder is what switches the server into local mode, so an
-  // empty or unchanged field posts nothing rather than clearing the layout.
+  // Committing the folder is what decides where new downloads land, so an
+  // empty or unchanged field posts nothing: an empty field already means
+  // "use the built-in default folder", which is the server's current state.
   async function applyLocalDir() {
-    if (storage.layout !== "local") return;
     const localDir = String(storage.localDir || "").trim();
     if (!localDir || localDir === String(ui.settings?.localDir || "").trim()) return;
     try {
@@ -242,24 +222,13 @@
   </div>
   <div class="storage-row">
     <span class="speed-label" title={tr("jobs.downloadToHint")}>{tr("jobs.downloadTo")}</span>
-    <div class="transport-field">
-      <label class="transport-label" for="downloadLayoutJobs" title={tr("settings.layoutHint")}>{tr("settings.layout")}</label>
-      <select id="downloadLayoutJobs" class="transport-select" value={storage.layout} onchange={(event) => applyLayout(event.target.value)}>
-        <option value="cache">{tr("settings.layoutCache")}</option>
-        <option value="local">{tr("settings.layoutLocal")}</option>
-      </select>
-    </div>
-    {#if storage.layout === "local"}
-      <div class="transport-field storage-dir-field" id="localDirGroup">
-        <label class="transport-label" for="localDirJobs" title={tr("settings.localDirHint")}>{tr("settings.localDir")}</label>
-        <div class="input-with-browse">
-          <input type="text" id="localDirJobs" class="path-input" placeholder="D:\Models" spellcheck="false" bind:value={storage.localDir} onchange={applyLocalDir} />
-          <button type="button" class="btn btn-secondary btn-sm" onclick={() => openPicker(storage.localDir, (picked) => { storage.localDir = picked; applyLocalDir(); })}>{tr("settings.browse")}</button>
-        </div>
+    <div class="transport-field storage-dir-field" id="localDirGroup">
+      <label class="transport-label" for="localDirJobs" title={tr("settings.localDirHint")}>{tr("settings.localDir")}</label>
+      <div class="input-with-browse">
+        <input type="text" id="localDirJobs" class="path-input" placeholder={ui.settings?.defaultLocalDir || "D:\Models"} spellcheck="false" bind:value={storage.localDir} onchange={applyLocalDir} />
+        <button type="button" class="btn btn-secondary btn-sm" onclick={() => openPicker(storage.localDir, (picked) => { storage.localDir = picked; applyLocalDir(); })}>{tr("settings.browse")}</button>
       </div>
-    {:else}
-      <code class="storage-path" id="storagePath" title={destination || tr("settings.defaultHubCache")}>{destination || tr("settings.defaultHubCache")}</code>
-    {/if}
+    </div>
     <details class="storage-advanced" id="typeFoldersGroup">
       <summary title={tr("settings.typeFoldersHint")}>{tr("settings.typeFolders")}</summary>
       <p class="form-hint">{tr("settings.typeFoldersHint")}</p>
