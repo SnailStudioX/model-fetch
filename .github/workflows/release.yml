@@ -51,21 +51,27 @@ jobs:
         include:
           - os: linux
             arch: amd64
+            name_arch: x86_64
             ext: ""
           - os: linux
             arch: arm64
+            name_arch: arm64
             ext: ""
           - os: darwin
             arch: amd64
+            name_arch: x86_64
             ext: ""
           - os: darwin
             arch: arm64
+            name_arch: arm64
             ext: ""
           - os: windows
             arch: amd64
+            name_arch: x86_64
             ext: ".exe"
           - os: windows
             arch: arm64
+            name_arch: arm64
             ext: ".exe"
 
     steps:
@@ -116,8 +122,9 @@ jobs:
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 0
         run: |
+          # GOARCH stays amd64; the asset name uses name_arch (x86_64) instead.
           go build -ldflags="-s -w -X main.Version=${{ steps.version.outputs.version }}" \
-            -o modelfetch_${{ matrix.os }}_${{ matrix.arch }}_${{ steps.version.outputs.tag }}${{ matrix.ext }} \
+            -o modelfetch_${{ matrix.os }}_${{ matrix.name_arch }}_${{ steps.version.outputs.tag }}${{ matrix.ext }} \
             ./cmd/modelfetch
 
       - name: Cleanup Windows resources (Windows only)
@@ -126,10 +133,57 @@ jobs:
           rm -f cmd/modelfetch/resource_windows_*.syso cmd/modelfetch/modelfetch.ico
 
       - name: Upload raw binary
+        if: ${{ matrix.os != 'darwin' }}
         uses: softprops/action-gh-release@7c4723f7a335432393329f8f1c564994ce50185d
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          files: modelfetch_${{ matrix.os }}_${{ matrix.arch }}_${{ steps.version.outputs.tag }}${{ matrix.ext }}
+          files: modelfetch_${{ matrix.os }}_${{ matrix.name_arch }}_${{ steps.version.outputs.tag }}${{ matrix.ext }}
+
+      # Darwin slices are not release assets: they are staged here and merged
+      # into the universal binary by the darwin-universal job below.
+      - name: Stage darwin slice
+        if: ${{ matrix.os == 'darwin' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: darwin-${{ matrix.arch }}
+          path: modelfetch_${{ matrix.os }}_${{ matrix.name_arch }}_${{ steps.version.outputs.tag }}${{ matrix.ext }}
+          retention-days: 1
+
+  darwin-universal:
+    name: Build darwin universal binary
+    runs-on: ubuntu-latest
+    needs: [create-release, build]
+    steps:
+      - name: Download darwin slices
+        uses: actions/download-artifact@v7
+        with:
+          pattern: darwin-*
+          merge-multiple: true
+          path: darwin-slices
+
+      - name: Install llvm (llvm-lipo)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq llvm
+
+      - name: Merge slices into universal binary
+        env:
+          TAG: ${{ needs.create-release.outputs.tag }}
+        run: |
+          llvm-lipo -create \
+            darwin-slices/modelfetch_darwin_x86_64_${TAG} \
+            darwin-slices/modelfetch_darwin_arm64_${TAG} \
+            -o modelfetch_darwin_universal_${TAG}
+          chmod +x modelfetch_darwin_universal_${TAG}
+          # Fail the job unless the fat binary really carries both slices.
+          INFO="$(llvm-lipo -info modelfetch_darwin_universal_${TAG})"
+          echo "$INFO"
+          echo "$INFO" | grep -q x86_64
+          echo "$INFO" | grep -q arm64
+
+      - name: Upload universal binary
+        uses: softprops/action-gh-release@7c4723f7a335432393329f8f1c564994ce50185d
+        with:
+          tag_name: ${{ needs.create-release.outputs.tag }}
+          files: modelfetch_darwin_universal_${{ needs.create-release.outputs.tag }}
 
   linux-desktop:
     name: Build Linux RPM
@@ -159,13 +213,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p /tmp/rpm-sources
-          # Download linux amd64 binary from release assets
+          # Download linux x86_64 binary from release assets
           gh release download "$TAG" \
-            -p "modelfetch_linux_amd64_*" \
+            -p "modelfetch_linux_x86_64_*" \
             -D /tmp/rpm-sources \
             -R "$REPO"
           # Rename to the exact Source0 name expected by the spec
-          mv /tmp/rpm-sources/modelfetch_linux_amd64_* /tmp/rpm-sources/modelfetch_linux_amd64
+          # (the spec still names its Source0 modelfetch_linux_amd64).
+          mv /tmp/rpm-sources/modelfetch_linux_x86_64_* /tmp/rpm-sources/modelfetch_linux_amd64
           # Copy packaging files
           cp packaging/rpm/modelfetch.desktop /tmp/rpm-sources/
           cp packaging/rpm/modelfetch.svg /tmp/rpm-sources/
@@ -192,7 +247,7 @@ jobs:
   checksums:
     name: Generate checksums
     runs-on: ubuntu-latest
-    needs: [create-release, build, linux-desktop]
+    needs: [create-release, build, linux-desktop, darwin-universal]
     steps:
       - name: Download release assets
         env:

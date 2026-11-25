@@ -52,9 +52,10 @@ jobs:
           CGO_ENABLED: 0
         run: |
           VERSION=$(cat VERSION | tr -d '[:space:]')
+          # GOARCH stays amd64; only the asset name uses x86_64.
           go build -ldflags="-X main.Version=${VERSION}" \
             -trimpath \
-            -o modelfetch_windows_amd64_${VERSION}.exe \
+            -o modelfetch_windows_x86_64_${VERSION}.exe \
             ./cmd/modelfetch
 
       - name: Cleanup Windows resources
@@ -64,6 +65,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: modelfetch-windows-amd64
-          path: modelfetch_windows_amd64_*.exe
+          name: modelfetch-windows-x86_64
+          path: modelfetch_windows_x86_64_*.exe
           retention-days: 7
