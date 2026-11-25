@@ -604,6 +604,13 @@ LOOP:
 			// Check if we can skip
 			alreadyOK, reason, err := skipCheck()
 			if err != nil {
+				// A content conflict is permanent for the whole job: only the
+				// user can resolve it, and sibling files should stop
+				// transferring instead of burning bandwidth on a job that is
+				// going to fail anyway.
+				if errors.Is(err, errFileConflict) {
+					setFatalErr(fmt.Errorf("skip check %s: %w", finalRel, err))
+				}
 				select {
 				case errCh <- err:
 				default:
@@ -714,66 +721,66 @@ LOOP:
 				emit:    emit,
 			}
 
-			// Verify after download
-			if it.LFS && it.SHA256 != "" {
-				if err := verifyDigestProgress(fileCtx, dst, it.SHA256, assembledSHA, verifyStage); err != nil {
-					select {
-					case errCh <- fmt.Errorf("sha256 verify failed: %s: %w", finalRel, err):
-					default:
+			// Verify after download. The whole check is one closure so the
+			// failure path is single: in flat (local) mode the bytes at dst
+			// were just written by this run, and an unverified file must not
+			// stay at the final name — the skip guard reads "a file already
+			// at dst" as a completed download, so a corrupt leftover would
+			// turn the next retry into a false content-conflict error.
+			// Removing it makes the retry re-download from scratch. (Cache
+			// mode keeps its existing staging cleanup.)
+			verifyErr := func() error {
+				if it.LFS && it.SHA256 != "" {
+					if err := verifyDigestProgress(fileCtx, dst, it.SHA256, assembledSHA, verifyStage); err != nil {
+						return fmt.Errorf("sha256 verify failed: %s: %w", finalRel, err)
 					}
-					return
-				}
-			} else if cfg.Verify == "size" && it.Size > 0 {
-				fi, err := os.Stat(dst)
-				if err != nil || fi.Size() != it.Size {
-					select {
-					case errCh <- fmt.Errorf("size mismatch for %s", finalRel):
-					default:
+				} else if cfg.Verify == "size" && it.Size > 0 {
+					fi, err := os.Stat(dst)
+					if err != nil || fi.Size() != it.Size {
+						return fmt.Errorf("size mismatch for %s", finalRel)
 					}
-					return
-				}
-			} else if cfg.Verify == "sha256" && src.HeadForSHA() {
-				_, remoteSha, herr := headForETag(fileCtx, httpc, cfg.Token, itForIO)
-				if herr != nil {
-					// headForETag maps every non-2xx status (401/403
-					// included) to an optional-metadata miss with no error,
-					// so the ordinary miss path falls through and the actual
-					// file request stays authoritative. Only a genuine
-					// caller cancellation surfaces here, and it must fail
-					// this file promptly instead of pretending verification
-					// succeeded; a fail-fast status error, should one ever
-					// surface, is escalated job-fatal below.
-					if isFailFastError(herr) {
-						setFatalErr(fmt.Errorf("verify head %s: %w", finalRel, herr))
-					}
-					select {
-					case errCh <- fmt.Errorf("verify head %s: %w", finalRel, herr):
-					default:
-					}
-					return
-				}
-				if remoteSha != "" {
-					if err := verifyDigestProgress(fileCtx, dst, remoteSha, assembledSHA, verifyStage); err != nil {
-						select {
-						case errCh <- fmt.Errorf("sha256 verify failed: %s: %w", finalRel, err):
-						default:
+				} else if cfg.Verify == "sha256" && src.HeadForSHA() {
+					_, remoteSha, herr := headForETag(fileCtx, httpc, cfg.Token, itForIO)
+					if herr != nil {
+						// headForETag maps every non-2xx status (401/403
+						// included) to an optional-metadata miss with no error,
+						// so the ordinary miss path falls through and the actual
+						// file request stays authoritative. Only a genuine
+						// caller cancellation surfaces here, and it must fail
+						// this file promptly instead of pretending verification
+						// succeeded; a fail-fast status error, should one ever
+						// surface, is escalated job-fatal below.
+						if isFailFastError(herr) {
+							setFatalErr(fmt.Errorf("verify head %s: %w", finalRel, herr))
 						}
-						return
+						return fmt.Errorf("verify head %s: %w", finalRel, herr)
+					}
+					if remoteSha != "" {
+						if err := verifyDigestProgress(fileCtx, dst, remoteSha, assembledSHA, verifyStage); err != nil {
+							return fmt.Errorf("sha256 verify failed: %s: %w", finalRel, err)
+						}
+					}
+				} else if cfg.Verify == "sha256" && it.Size > 0 {
+					// A hub whose resolve endpoint exposes neither ETag nor
+					// x-amz-meta-sha256 cannot supply the expected digest through
+					// HEAD. Size is then the only trusted signal for a file that
+					// carries no hash in the tree listing.
+					fi, err := os.Stat(dst)
+					if err != nil || fi.Size() != it.Size {
+						return fmt.Errorf("size mismatch for %s", finalRel)
 					}
 				}
-			} else if cfg.Verify == "sha256" && it.Size > 0 {
-				// A hub whose resolve endpoint exposes neither ETag nor
-				// x-amz-meta-sha256 cannot supply the expected digest through
-				// HEAD. Size is then the only trusted signal for a file that
-				// carries no hash in the tree listing.
-				fi, err := os.Stat(dst)
-				if err != nil || fi.Size() != it.Size {
-					select {
-					case errCh <- fmt.Errorf("size mismatch for %s", finalRel):
-					default:
-					}
-					return
+				return nil
+			}()
+			if verifyErr != nil {
+				if !useHFCache {
+					removeUnverifiedLocal(dst)
 				}
+				select {
+				case errCh <- verifyErr:
+				default:
+				}
+				return
 			}
 
 			// For HF Cache mode: move to blob and create symlinks. The store
@@ -903,6 +910,19 @@ LOOP:
 		Message: fmt.Sprintf("download complete (downloaded %d, skipped %d)", downloadedCount, skippedCount),
 	})
 	return nil
+}
+
+// removeUnverifiedLocal deletes a flat-mode destination whose bytes failed
+// post-download verification. The file was just written by this run (a
+// pre-existing file would have been skipped or rejected by the conflict guard
+// before any bytes moved), so removing it is safe and keeps the final name
+// free of corrupt content: the next run re-downloads from scratch instead of
+// reading the leftover as a completed download.
+func removeUnverifiedLocal(dst string) {
+	// lgtm[go/path-injection] — dst comes from SafeJoin in Download().
+	if err := os.Remove(dst); err != nil && !os.IsNotExist(err) {
+		log.Printf("warning: cleanup unverified file %s: %v", dst, err)
+	}
 }
 
 // cleanupPartialsOnCancel removes partial download artifacts (.part,

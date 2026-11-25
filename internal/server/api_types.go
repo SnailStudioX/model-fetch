@@ -21,8 +21,9 @@ type DownloadRequest struct {
 	LocalDir string `json:"localDir,omitempty"`
 	// Layout pins the storage layout for this request: "cache" (HF
 	// hub/{blobs,refs,snapshots}), "local" (real files under a directory),
-	// or empty to follow the server-global setting. "local" requires a
-	// directory from localDir or a route. Regardless of this field, a
+	// or empty to follow the server-global setting. The local layout falls
+	// back to the built-in default folder when no directory is configured,
+	// so "local" no longer requires one. Regardless of this field, a
 	// destination inside an LM Studio tree is always written flat so the
 	// app can load the files.
 	Layout string `json:"layout,omitempty"`
@@ -103,11 +104,14 @@ type SettingsResponse struct {
 	// ActiveHubSource is the id of the entry whose source, endpoint and token the
 	// server is using right now; Token above belongs to it.
 	ActiveHubSource string `json:"active_hub_source,omitempty"`
-	// StorageMode is "local" when the server writes real files into LocalDir,
-	// or "cache" when it uses the HF cache layout. Set at startup, read-only.
+	// StorageMode is "cache" when the server has opted into the advanced HF
+	// cache layout, or "local" (the default) when it writes real files.
 	StorageMode   string   `json:"storageMode"`
 	LocalDir      string   `json:"localDir,omitempty"`
-	LocalScanDirs []string `json:"localScanDirs,omitempty"`
+	// DefaultLocalDir is the built-in flat root used when no download folder
+	// is configured, so the UI can show where files land out of the box.
+	DefaultLocalDir string   `json:"defaultLocalDir,omitempty"`
+	LocalScanDirs   []string `json:"localScanDirs,omitempty"`
 	// DownloadRoutes maps internal route keys to destination directories.
 	// Opt-in; empty/omitted means routed downloads are disabled.
 	DownloadRoutes map[string]string `json:"downloadRoutes,omitempty"`

@@ -78,13 +78,27 @@ func looksLikeLMStudioDir(p string) bool {
 // destination sits inside an LM Studio tree.
 const lmStudioFlatNote = "LM Studio directory detected: files written flat as <root>/owner/repo/file.gguf instead of the HF cache layout, so LM Studio can load them."
 
+// defaultLocalDir is the fallback download root for the local-first default:
+// with no configured local dir or route, downloads land in a "models" folder
+// next to the server instead of the HF cache, so a fresh install produces real
+// <root>/owner/repo/file.gguf files the user can point any loader at.
+func defaultLocalDir() string {
+	return filepath.Join(RunDir(), "models")
+}
+
+// defaultLocalNoteFormat records that the built-in folder was chosen because
+// nothing was configured, so the Jobs page can explain where the files went.
+const defaultLocalNoteFormat = "No download directory configured: files are written flat under %s."
+
 // resolveDownloadDestination is the common destination owner for job creation
 // and disk previews. It preserves explicit localDir > route (including parent
-// fallback) > global LocalDir > HF cache, with dataset selector bypass. The
-// per-request Layout ("cache" | "local", empty = follow global settings) lets
-// one download opt out of the server default; "local" without any directory
-// is rejected so the job cannot quietly fall back to the cache. Finally the
-// LM Studio guard runs last and wins: a destination that resolves into an
+// fallback) > global LocalDir, with dataset selector bypass. The layout is
+// local-first: unless the server is in the advanced cache mode (Config
+// .StorageMode) or the request pins Layout:"cache", a download writes flat,
+// falling back to defaultLocalDir() when no directory is configured (with a
+// note saying so). The per-request Layout ("cache" | "local", empty = follow
+// the server mode) lets one download opt out of the server default. Finally
+// the LM Studio guard runs last and wins: a destination that resolves into an
 // LM Studio tree always goes flat, regardless of how it got selected.
 func resolveDownloadDestination(cfg Config, req DownloadRequest) (routeKey, localDir, outputDir, note string, err error) {
 	routeKey, err = validatedRouteKey(req)
@@ -96,6 +110,21 @@ func resolveDownloadDestination(cfg Config, req DownloadRequest) (routeKey, loca
 	default:
 		return "", "", "", "", fmt.Errorf("%w: unknown layout %q", errInvalidDestination, req.Layout)
 	}
+	// Defense against an explicitly blank directory: a client that sends
+	// localDir as whitespace-only garbage is a caller bug. Reject it instead
+	// of treating it as "not set" and silently rewriting the destination to
+	// a default the user never asked for.
+	if req.LocalDir != "" && strings.TrimSpace(req.LocalDir) == "" {
+		return "", "", "", "", fmt.Errorf("%w: localDir must not be blank", errInvalidDestination)
+	}
+
+	// The effective layout: the server-wide mode is local-first ("", "local")
+	// with "cache" as the opt-in advanced mode; a per-request Layout pins the
+	// layout for this one download.
+	mode := cfg.StorageMode
+	if req.Layout != "" {
+		mode = req.Layout
+	}
 
 	localDir = cfg.LocalDir
 	if req.LocalDir != "" {
@@ -103,7 +132,7 @@ func resolveDownloadDestination(cfg Config, req DownloadRequest) (routeKey, loca
 	} else if resolved := resolveRoute(cfg.DownloadRoutes, routeKey); resolved != "" {
 		localDir = resolved
 	}
-	if req.Layout == "cache" {
+	if mode == "cache" {
 		// Explicit cache mode for this job: the global local dir and routes
 		// are server-wide state, not a per-job choice, so they do not apply.
 		// An explicit per-request localDir still counts as opting into flat
@@ -112,8 +141,12 @@ func resolveDownloadDestination(cfg Config, req DownloadRequest) (routeKey, loca
 			localDir = ""
 		}
 	}
-	if req.Layout == "local" && localDir == "" {
-		return "", "", "", "", fmt.Errorf("%w: layout \"local\" requires a local directory", errInvalidDestination)
+	// local-first: with nothing configured the download still writes flat,
+	// into the built-in models folder, instead of the HF cache. This is why
+	// "local" without a directory is no longer an error.
+	if mode != "cache" && localDir == "" {
+		localDir = defaultLocalDir()
+		note = fmt.Sprintf(defaultLocalNoteFormat, localDir)
 	}
 
 	outputDir = localDir

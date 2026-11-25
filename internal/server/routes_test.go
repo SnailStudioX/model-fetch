@@ -51,8 +51,8 @@ func TestDownloadDiskFreeDestination(t *testing.T) {
 		{"parent safetensors", Config{CacheDir: cache, LocalDir: local, DownloadRoutes: map[string]string{"llm": parent}}, DownloadRequest{RouteKey: "llm/safetensors"}, parent},
 		{"audio", Config{CacheDir: cache, DownloadRoutes: map[string]string{"audio": audio}}, DownloadRequest{RouteKey: "audio"}, audio},
 		{"global local", Config{CacheDir: cache, LocalDir: local}, DownloadRequest{RouteKey: "llm/gguf"}, local},
-		{"cache", Config{CacheDir: cache}, DownloadRequest{RouteKey: "llm/gguf"}, cache},
-		{"default cache", Config{}, DownloadRequest{}, hfdownloader.DefaultCacheDir()},
+		{"cache", Config{CacheDir: cache, StorageMode: "cache"}, DownloadRequest{RouteKey: "llm/gguf"}, cache},
+		{"default cache", Config{StorageMode: "cache"}, DownloadRequest{}, hfdownloader.DefaultCacheDir()},
 		{"dataset bypass", Config{CacheDir: cache, LocalDir: local, DownloadRoutes: map[string]string{"llm/gguf": fine}}, DownloadRequest{Dataset: true, RouteKey: "unknown"}, local},
 		{"dataset explicit", Config{CacheDir: cache, LocalDir: local}, DownloadRequest{Dataset: true, LocalDir: explicit}, explicit},
 	}
@@ -351,7 +351,9 @@ func TestJobManager_CreateJob_RouteKey(t *testing.T) {
 	})
 
 	t.Run("no key and no localDir uses HF cache", func(t *testing.T) {
-		job, _, err := mgr.CreateJob(DownloadRequest{Repo: "route/plain"})
+		// The cache layout must be pinned: the local-first default would
+		// otherwise fall back to the built-in flat folder.
+		job, _, err := mgr.CreateJob(DownloadRequest{Repo: "route/plain", Layout: "cache"})
 		if err != nil {
 			t.Fatalf("CreateJob failed: %v", err)
 		}
@@ -371,7 +373,9 @@ func TestJobManager_CreateJob_RouteKey(t *testing.T) {
 	})
 
 	t.Run("unconfigured known key falls back to LocalDir", func(t *testing.T) {
-		job, _, err := mgr.CreateJob(DownloadRequest{Repo: "route/unconf", RouteKey: "embedding"})
+		// Pinned to the cache layout: an unconfigured key must not pick up
+		// the local-first default folder either.
+		job, _, err := mgr.CreateJob(DownloadRequest{Repo: "route/unconf", RouteKey: "embedding", Layout: "cache"})
 		if err != nil {
 			t.Fatalf("CreateJob failed: %v", err)
 		}
@@ -423,7 +427,9 @@ func TestJobManager_CreateJob_DatasetIgnoresRouteKey(t *testing.T) {
 		})
 		defer cleanup()
 
-		job, _, err := mgr.CreateJob(DownloadRequest{Repo: "owner/data2", Dataset: true, RouteKey: "llm/gguf"})
+		// The cache destination is pinned per request: the local-first
+		// default would write the dataset flat instead.
+		job, _, err := mgr.CreateJob(DownloadRequest{Repo: "owner/data2", Dataset: true, RouteKey: "llm/gguf", Layout: "cache"})
 		if err != nil {
 			t.Fatalf("CreateJob failed: %v", err)
 		}
@@ -1038,7 +1044,8 @@ func TestDownloadRoutes_EmptyPreservesBehavior(t *testing.T) {
 
 	t.Run("HF-cache-only mode", func(t *testing.T) {
 		cacheDir := t.TempDir()
-		mgr, cleanup := newRouteTestManager(t, Config{CacheDir: cacheDir})
+		// The cache mode is now opt-in via StorageMode.
+		mgr, cleanup := newRouteTestManager(t, Config{CacheDir: cacheDir, StorageMode: "cache"})
 		defer cleanup()
 
 		job, _, err := mgr.CreateJob(DownloadRequest{Repo: "plain/cache"})
@@ -1209,7 +1216,7 @@ func TestJobDestFreeze_CacheDirChange(t *testing.T) {
 	if err := os.MkdirAll(dirA, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	mgr, guard := stalledEndpointManager(t, Config{CacheDir: dirA, MaxActive: 1})
+	mgr, guard := stalledEndpointManager(t, Config{CacheDir: dirA, StorageMode: "cache", MaxActive: 1})
 
 	// Occupy the only slot so the created job stays queued across the
 	// settings change (the queued-execution case).
@@ -1222,7 +1229,7 @@ func TestJobDestFreeze_CacheDirChange(t *testing.T) {
 	// building the new config inside withConfig on the current values. The
 	// queued job then moves through the paused state exactly as a restored
 	// job would (LoadState clamps queued/running to paused) and resumes.
-	mgr.UpdateConfig(Config{CacheDir: dirB, MaxActive: 1, Endpoint: guard.endpoint.URL})
+	mgr.UpdateConfig(Config{CacheDir: dirB, StorageMode: "cache", MaxActive: 1, Endpoint: guard.endpoint.URL})
 	mgr.mu.Lock()
 	if svc := mgr.jobs[job.ID]; svc != nil && svc.Status == JobStatusQueued {
 		svc.Status = JobStatusPaused
@@ -1233,7 +1240,7 @@ func TestJobDestFreeze_CacheDirChange(t *testing.T) {
 	}
 	// Free the slot and dispatch the resumed job.
 	mgr.CancelJob(fill.ID)
-	mgr.UpdateConfig(Config{CacheDir: dirB, MaxActive: 1, Endpoint: guard.endpoint.URL})
+	mgr.UpdateConfig(Config{CacheDir: dirB, StorageMode: "cache", MaxActive: 1, Endpoint: guard.endpoint.URL})
 
 	// The resumed run must contact the stall endpoint using settings
 	// derived from the frozen OutputDir (dirA), not the new dirB.
@@ -1289,21 +1296,21 @@ func TestJobDestFreeze_QueuedStartsInA(t *testing.T) {
 	root := t.TempDir()
 	dirA := filepath.Join(root, "cacheA")
 	dirB := filepath.Join(root, "cacheB")
-	mgr, guard := stalledEndpointManager(t, Config{CacheDir: dirA, MaxActive: 1})
+	mgr, guard := stalledEndpointManager(t, Config{CacheDir: dirA, StorageMode: "cache", MaxActive: 1})
 
 	// Fill the only active slot with a placeholder running job so the
 	// real job stays queued while settings change.
 	fill := stalledSlotJob(t, mgr)
 
 	job := runAndWaitQueued(t, mgr, DownloadRequest{Repo: "freeze/queued"})
-	mgr.UpdateConfig(Config{CacheDir: dirB, MaxActive: 1, Endpoint: guard.endpoint.URL})
+	mgr.UpdateConfig(Config{CacheDir: dirB, StorageMode: "cache", MaxActive: 1, Endpoint: guard.endpoint.URL})
 
 	// Free the slot and let the scheduler dispatch: cancel removes the
 	// filler, and the noop-cancel UpdateConfig re-runs dispatchLocked to
 	// start the queued job, which must use the frozen dirA despite
 	// cfg.CacheDir being dirB at start time.
 	mgr.CancelJob(fill.ID)
-	mgr.UpdateConfig(Config{CacheDir: dirB, MaxActive: 1, Endpoint: guard.endpoint.URL})
+	mgr.UpdateConfig(Config{CacheDir: dirB, StorageMode: "cache", MaxActive: 1, Endpoint: guard.endpoint.URL})
 	waitJobStatus(t, mgr, job.ID, JobStatusRunning, 10*time.Second)
 	if dbg, ok := mgr.GetJob(job.ID); ok {
 		t.Logf("debug job status=%s phase=%s err=%q progress=%+v startedAt=%v", dbg.Status, dbg.Phase, dbg.Error, dbg.Progress, dbg.StartedAt != nil)
@@ -1351,7 +1358,7 @@ func TestJobDestFreeze_ResumeStaysA(t *testing.T) {
 	root := t.TempDir()
 	dirA := filepath.Join(root, "cacheA")
 	dirB := filepath.Join(root, "cacheB")
-	mgr, guard := stalledEndpointManager(t, Config{CacheDir: dirA, MaxActive: 1})
+	mgr, guard := stalledEndpointManager(t, Config{CacheDir: dirA, StorageMode: "cache", MaxActive: 1})
 
 	job, _, err := mgr.CreateJob(DownloadRequest{Repo: "freeze/resume"})
 	if err != nil {
@@ -1367,7 +1374,7 @@ func TestJobDestFreeze_ResumeStaysA(t *testing.T) {
 	waitJobStatus(t, mgr, job.ID, JobStatusPaused, 10*time.Second)
 
 	// Settings change while paused.
-	mgr.UpdateConfig(Config{CacheDir: dirB, MaxActive: 1, Endpoint: guard.endpoint.URL})
+	mgr.UpdateConfig(Config{CacheDir: dirB, StorageMode: "cache", MaxActive: 1, Endpoint: guard.endpoint.URL})
 
 	if !mgr.ResumeJob(job.ID) {
 		t.Fatal("ResumeJob failed")
@@ -1394,7 +1401,7 @@ func TestJobDestFreeze_RetryStaysA(t *testing.T) {
 	root := t.TempDir()
 	dirA := filepath.Join(root, "cacheA")
 	dirB := filepath.Join(root, "cacheB")
-	mgr, guard := stalledEndpointManager(t, Config{CacheDir: dirA, MaxActive: 1})
+	mgr, guard := stalledEndpointManager(t, Config{CacheDir: dirA, StorageMode: "cache", MaxActive: 1})
 
 	job, _, err := mgr.CreateJob(DownloadRequest{Repo: "freeze/retry"})
 	if err != nil {
@@ -1411,7 +1418,7 @@ func TestJobDestFreeze_RetryStaysA(t *testing.T) {
 	waitJobStatus(t, mgr, job.ID, JobStatusCancelled, 30*time.Second)
 
 	// Settings change while failed/cancelled, then retry.
-	mgr.UpdateConfig(Config{CacheDir: dirB, MaxActive: 1, Endpoint: guard.endpoint.URL})
+	mgr.UpdateConfig(Config{CacheDir: dirB, StorageMode: "cache", MaxActive: 1, Endpoint: guard.endpoint.URL})
 
 	if !mgr.RetryJob(job.ID) {
 		t.Fatal("RetryJob failed")
@@ -1521,7 +1528,9 @@ func TestCreateJob_DedupDestinationIdentity(t *testing.T) {
 		root := t.TempDir()
 		dirA := filepath.Join(root, "cacheA")
 		dirB := filepath.Join(root, "cacheB")
-		mgr, cleanup := newRouteTestManager(t, Config{CacheDir: dirA})
+		// Cache-mode dedup identity: pin the advanced cache mode on both
+		// settings generations.
+		mgr, cleanup := newRouteTestManager(t, Config{CacheDir: dirA, StorageMode: "cache"})
 		defer cleanup()
 
 		job1, _, err := mgr.CreateJob(DownloadRequest{Repo: "dedup/cacheab"})
@@ -1532,7 +1541,7 @@ func TestCreateJob_DedupDestinationIdentity(t *testing.T) {
 			t.Fatalf("job1.OutputDir = %q, want %q", job1.OutputDir, dirA)
 		}
 		// Settings move the cache root to B, then re-request the repo.
-		mgr.UpdateConfig(Config{CacheDir: dirB})
+		mgr.UpdateConfig(Config{CacheDir: dirB, StorageMode: "cache"})
 		job2, existing2, err := mgr.CreateJob(DownloadRequest{Repo: "dedup/cacheab"})
 		if err != nil {
 			t.Fatal(err)
@@ -1972,7 +1981,9 @@ func TestResolveDownloadDestination_LMStudioCacheRootGoesFlat(t *testing.T) {
 	lmsDir := filepath.Join(root, ".lmstudio", "models")
 	cfg := Config{CacheDir: lmsDir}
 
-	routeKey, localDir, outputDir, note, err := resolveDownloadDestination(cfg, DownloadRequest{})
+	// The guard protects a cache-layout destination: pin the cache layout
+	// (the local-first default never lands in the cache root to begin with).
+	routeKey, localDir, outputDir, note, err := resolveDownloadDestination(cfg, DownloadRequest{Layout: "cache"})
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
@@ -2001,10 +2012,18 @@ func TestResolveDownloadDestination_LayoutPinning(t *testing.T) {
 		t.Errorf("layout=cache must ignore global LocalDir: localDir=%q outputDir=%q", localDir, outputDir)
 	}
 
-	// "local" without any directory is rejected instead of silently caching.
+	// local-first: "local" without any directory is no longer an error; it
+	// falls back to the built-in default folder with an explanatory note.
 	cfgNoLocal := Config{CacheDir: filepath.Join(root, "cache")}
-	if _, _, _, _, err := resolveDownloadDestination(cfgNoLocal, DownloadRequest{Layout: "local", LocalDir: ""}); err == nil {
-		t.Error("layout=local without a directory must error")
+	_, localDir, outputDir, note, err := resolveDownloadDestination(cfgNoLocal, DownloadRequest{Layout: "local", LocalDir: ""})
+	if err != nil {
+		t.Fatalf("layout=local without a directory must fall back, got %v", err)
+	}
+	if localDir != defaultLocalDir() || outputDir != defaultLocalDir() {
+		t.Errorf("layout=local fallback: localDir=%q outputDir=%q, want %q", localDir, outputDir, defaultLocalDir())
+	}
+	if note != fmt.Sprintf(defaultLocalNoteFormat, defaultLocalDir()) {
+		t.Errorf("fallback note = %q, want the default-folder note", note)
 	}
 
 	// An explicit per-request localDir keeps flat even under layout=cache.
@@ -2023,6 +2042,91 @@ func TestResolveDownloadDestination_LayoutPinning(t *testing.T) {
 	}
 }
 
+// TestResolveDownloadDestination_LocalFirstDefault pins the new default:
+// with no configured directory and no per-request layout, the download
+// writes flat under the built-in models folder next to the server, with a
+// note explaining the fallback — never an error and never the HF cache.
+func TestResolveDownloadDestination_LocalFirstDefault(t *testing.T) {
+	cfg := Config{CacheDir: filepath.Join(t.TempDir(), "cache")}
+
+	routeKey, localDir, outputDir, note, err := resolveDownloadDestination(cfg, DownloadRequest{Repo: "owner/name"})
+	if err != nil {
+		t.Fatalf("local-first default must not error: %v", err)
+	}
+	if routeKey != "" {
+		t.Errorf("unexpected routeKey %q", routeKey)
+	}
+	want := filepath.Join(RunDir(), "models")
+	if localDir != want || outputDir != want {
+		t.Errorf("localDir=%q outputDir=%q, want %q", localDir, outputDir, want)
+	}
+	if localDir != defaultLocalDir() {
+		t.Errorf("defaultLocalDir()=%q, want %q", defaultLocalDir(), want)
+	}
+	if note == "" {
+		t.Error("expected a non-empty note explaining the default folder")
+	}
+	if note != fmt.Sprintf(defaultLocalNoteFormat, want) {
+		t.Errorf("note = %q, want the default-folder note", note)
+	}
+	// The flat destination is the owner/name folder under the default root.
+	dest, destNote := destinationPreview(cfg, DownloadRequest{Repo: "owner/name"})
+	if wantFlat := filepath.Join(want, "owner", "name"); dest != wantFlat {
+		t.Errorf("preview = %q, want flat %q", dest, wantFlat)
+	}
+	if destNote != note {
+		t.Errorf("preview note = %q, want %q", destNote, note)
+	}
+}
+
+// TestResolveDownloadDestination_RequestCacheLayout pins the per-request
+// opt-out: Layout "cache" still routes through the hub cache directory even
+// though the server default is local-first.
+func TestResolveDownloadDestination_RequestCacheLayout(t *testing.T) {
+	cache := filepath.Join(t.TempDir(), "cache")
+	cfg := Config{CacheDir: cache}
+
+	_, localDir, outputDir, note, err := resolveDownloadDestination(cfg, DownloadRequest{Repo: "owner/name", Layout: "cache"})
+	if err != nil {
+		t.Fatalf("layout=cache: %v", err)
+	}
+	if localDir != "" {
+		t.Errorf("localDir = %q, want empty for the cache layout", localDir)
+	}
+	if outputDir != cache {
+		t.Errorf("outputDir = %q, want cache root %q", outputDir, cache)
+	}
+	if note != "" {
+		t.Errorf("unexpected note %q for an explicit cache layout", note)
+	}
+	if dest, _ := destinationPreview(cfg, DownloadRequest{Repo: "owner/name", Layout: "cache"}); dest != cacheHubLayoutDir(cache, "owner/name") {
+		t.Errorf("cache preview = %q, want hub directory %q", dest, cacheHubLayoutDir(cache, "owner/name"))
+	}
+}
+
+// TestAPI_StartDownload_RejectsBlankLocalDir covers the destination defense:
+// a whitespace-only localDir is a caller bug and must be a 400, not a
+// silent rewrite to the default folder.
+func TestAPI_StartDownload_RejectsBlankLocalDir(t *testing.T) {
+	srv := newTestServer(t)
+	for _, localDir := range []string{" ", "\t", "   "} {
+		body, err := json.Marshal(DownloadRequest{Repo: "owner/model", LocalDir: localDir})
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest("POST", "/api/download", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.handleStartDownload(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("localDir=%q: status=%d, want 400; body=%s", localDir, w.Code, w.Body.String())
+		}
+		if jobs := srv.jobs.ListJobs(); len(jobs) != 0 {
+			t.Fatalf("blank localDir was admitted: %+v", jobs)
+		}
+	}
+}
+
 func TestDestinationPreview(t *testing.T) {
 	root := t.TempDir()
 	local := filepath.Join(root, "models")
@@ -2038,10 +2142,11 @@ func TestDestinationPreview(t *testing.T) {
 		t.Errorf("unexpected note %q", note)
 	}
 
-	// LM Studio guard: preview shows the flat path and carries the note.
+	// LM Studio guard: a cache-layout destination inside an LM Studio tree
+	// previews flat and carries the note.
 	lms := filepath.Join(root, ".lmstudio", "models")
 	cfg2 := Config{CacheDir: lms}
-	dest2, note2 := destinationPreview(cfg2, DownloadRequest{Repo: "owner/repo"})
+	dest2, note2 := destinationPreview(cfg2, DownloadRequest{Repo: "owner/repo", Layout: "cache"})
 	if dest2 != filepath.Join(lms, "owner", "repo") {
 		t.Errorf("LM Studio preview = %q, want flat under %q", dest2, lms)
 	}
@@ -2051,7 +2156,7 @@ func TestDestinationPreview(t *testing.T) {
 
 	// Cache mode: preview names the physical hub repo directory.
 	cfg3 := Config{CacheDir: filepath.Join(root, "cache3")}
-	dest3, note3 := destinationPreview(cfg3, DownloadRequest{Repo: "owner/repo"})
+	dest3, note3 := destinationPreview(cfg3, DownloadRequest{Repo: "owner/repo", Layout: "cache"})
 	if wantHub := cacheHubLayoutDir(cfg3.CacheDir, "owner/repo"); dest3 != wantHub {
 		t.Errorf("cache preview = %q, want %q", dest3, wantHub)
 	}

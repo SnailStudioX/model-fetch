@@ -1412,8 +1412,10 @@ func TestAPI_StartDownload_ValidatesRepo(t *testing.T) {
 func TestAPI_StartDownload_OutputIgnored(t *testing.T) {
 	srv := newTestServer(t)
 
-	// Try to specify custom output path
-	body := `{"repo": "test/model", "output": "/etc/evil"}`
+	// Try to specify custom output path. The request pins the advanced cache
+	// layout so the server-controlled destination is the HF cache root (the
+	// server default is local-first flat).
+	body := `{"repo": "test/model", "output": "/etc/evil", "layout": "cache"}`
 	req := httptest.NewRequest("POST", "/api/download", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -1440,7 +1442,10 @@ func TestAPI_StartDownloadRejectsEscapingLocalRepo(t *testing.T) {
 	for _, localRepo := range []string{"../outside", "owner/..", "custom/deep/path", "a/../b", "owner/na\x00me"} {
 		t.Run(localRepo, func(t *testing.T) {
 			srv := newTestServer(t)
-			body, err := json.Marshal(DownloadRequest{Repo: "owner/model", LocalRepo: localRepo})
+			// Cache layout: the hub repository-name validation is the strict
+			// one under test here; the flat layout intentionally allows
+			// in-root normalizing segments like a/../b.
+			body, err := json.Marshal(DownloadRequest{Repo: "owner/model", LocalRepo: localRepo, Layout: "cache"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1461,7 +1466,9 @@ func TestAPI_StartDownloadRejectsEscapingLocalRepo(t *testing.T) {
 func TestAPI_StartDownload_DatasetUsesSameCacheDir(t *testing.T) {
 	srv := newTestServer(t)
 
-	body := `{"repo": "test/dataset", "dataset": true}`
+	// The cache layout is pinned so both repo types share the HF cache dir;
+	// the local-first default would write the dataset flat instead.
+	body := `{"repo": "test/dataset", "dataset": true, "layout": "cache"}`
 	req := httptest.NewRequest("POST", "/api/download", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

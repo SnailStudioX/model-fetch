@@ -9,11 +9,13 @@ import SettingsPage from "../src/pages/Settings.svelte";
 import { ui } from "../src/store.svelte.js";
 
 // The Settings page used to hold one storage card for every path in the app. It
-// is split by who needs the answer: the Jobs page carries the download target
-// (layout, local folder, per-type folders) because that is decided while jobs are
-// started, and the Cache page carries the roots it scans because that is what
-// the list below it is made of. Both post partial bodies; Settings no longer
-// sends these fields at all, so saving it cannot roll them back.
+// is split by who needs the answer: the Jobs page carries the download folder
+// and the per-type folders because they are decided while jobs are started, the
+// Cache page carries the roots it scans because that is what the list below it
+// is made of, and only the advanced card on Settings switches the server-wide
+// layout (local-first by default, HF cache as the opt-in). Jobs and Cache post
+// partial bodies; Settings authors the layout but not the folders whose
+// controls live elsewhere, so saving it cannot roll those back.
 let posts = [];
 let stored = {};
 let realFetch = null;
@@ -27,7 +29,9 @@ function fakeFetch() {
       const body = options.body ? JSON.parse(options.body) : null;
       posts.push({ url: String(url), body });
       stored = { ...stored, ...body };
-      stored.storageMode = String(stored.localDir || "") ? "local" : "cache";
+      // storageMode is an explicit field now (local-first is the default), not
+      // a side effect of localDir being set.
+      if (body && body.storageMode !== undefined) stored.storageMode = body.storageMode || "local";
     }
     if (String(url).startsWith("/api/cache")) {
       return { ok: true, status: 200, json: async () => ({ repos: [], stats: { totalModels: 0, totalDatasets: 0, totalSize: 0, totalSizeHuman: "0 B", totalFiles: 0 }, cacheDir: stored.configuredCacheDir, effectiveHubDir: stored.effectiveHubDir }) };
@@ -63,12 +67,13 @@ beforeEach(() => {
   realFetch = globalThis.fetch;
   posts = [];
   stored = {
-    storageMode: "cache",
+    storageMode: "local",
     cacheDir: "C:\\cache",
     configuredCacheDir: "C:\\cache",
     effectiveHubDir: "C:\\cache\\hub",
     hubDirSource: "cacheDir",
     localDir: "D:\\Models",
+    defaultLocalDir: "/srv/app/models",
     localScanDirs: ["D:\\Models"],
     downloadRoutes: { "llm/gguf": "C:\\models\\LLM\\GGUF" },
     maxSpeed: "",
@@ -99,46 +104,39 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-test("the Jobs page carries the download target under the transport knobs", async () => {
+test("the Jobs page carries the download folder under the transport knobs", async () => {
   ui.page = "jobs";
   mountPage(JobsPage);
   await settle();
 
   const row = node.querySelector(".storage-row");
   expect(row).toBeTruthy();
-  expect(row.querySelector("#downloadLayoutJobs").value).toBe("cache");
-  // The readout names the directory a new download would actually write into.
-  expect(node.querySelector("#storagePath").textContent).toBe("C:\\cache\\hub");
+  // The layout select is gone: the server is local-first, so the page only
+  // edits the folder new downloads write into.
+  expect(row.querySelector("#downloadLayoutJobs")).toBe(null);
+  expect(row.querySelector("#localDirJobs").value).toBe("D:\\Models");
 });
 
-test("switching the layout posts only the field that decides it", async () => {
+test("editing the download folder posts only the localDir field", async () => {
   ui.page = "jobs";
   mountPage(JobsPage);
   await settle();
 
-  selectOption(node.querySelector("#downloadLayoutJobs"), "local");
+  commit(node.querySelector("#localDirJobs"), "E:\\Models");
   await settle();
-  expect(posts[posts.length - 1].body).toEqual({ localDir: "D:\\Models" });
-  expect(node.querySelector("#localDirJobs").value).toBe("D:\\Models");
-
-  selectOption(node.querySelector("#localDirJobs").closest(".storage-row").querySelector("#downloadLayoutJobs"), "cache");
-  await settle();
-  expect(posts[posts.length - 1].body).toEqual({ localDir: "" });
-  expect(node.querySelector("#storagePath")).toBeTruthy();
+  expect(posts[posts.length - 1].body).toEqual({ localDir: "E:\\Models" });
 });
 
-test("switching to the local layout without a folder opens the field instead of writing an empty target", async () => {
+test("an empty download folder posts nothing: the server already defaults to its built-in folder", async () => {
   stored.localDir = "";
-  stored.storageMode = "cache";
   ui.settings = { ...stored };
   ui.page = "jobs";
   mountPage(JobsPage);
   await settle();
 
-  selectOption(node.querySelector("#downloadLayoutJobs"), "local");
+  commit(node.querySelector("#localDirJobs"), "");
   await settle();
   expect(posts.filter((entry) => entry.url === "/api/settings")).toEqual([]);
-  expect(node.querySelector("#localDirJobs")).toBeTruthy();
 
   commit(node.querySelector("#localDirJobs"), "E:\\Models");
   await settle();
@@ -201,4 +199,23 @@ test("the Settings page no longer carries the storage card", async () => {
   }
   const headings = [...node.querySelectorAll(".settings-card h3")].map((el) => el.textContent.trim());
   expect(headings).not.toContain("Storage");
+});
+
+test("the Settings advanced card switches the server-wide layout and reveals the HF cache folder", async () => {
+  ui.page = "settings";
+  mountPage(SettingsPage);
+  await settle();
+
+  const mode = node.querySelector("#storageMode");
+  expect(mode.value).toBe("local");
+  // The HF cache folder only matters once the advanced cache layout is picked.
+  expect(node.querySelector("#advancedHubDir")).toBe(null);
+
+  selectOption(mode, "cache");
+  await settle();
+  expect(node.querySelector("#advancedHubDir").value).toBe("C:\\cache\\hub");
+
+  node.querySelector(".page-actions .btn-primary").click();
+  await settle();
+  expect(posts[posts.length - 1].body.storageMode).toBe("cache");
 });

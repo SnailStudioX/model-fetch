@@ -241,7 +241,9 @@ func TestFrozenHubJobCompletedTransitions(t *testing.T) {
 				first = "fail"
 			}
 			ep, body, hash, reached := cacheDownloadFixture(t, first)
-			cfg := Config{CacheDir: a, MaxActive: 1, Concurrency: 1, Verify: "sha256", Endpoint: ep.URL}
+			// Frozen-hub identity is a cache-layout property: pin the
+			// advanced cache mode so the job keeps the hub destination.
+			cfg := Config{CacheDir: a, StorageMode: "cache", MaxActive: 1, Concurrency: 1, Verify: "sha256", Endpoint: ep.URL}
 			if transition == "requeue" {
 				cfg.MaxActive = 2
 			}
@@ -360,7 +362,8 @@ func TestHubAssociationDedupAndCleanup(t *testing.T) {
 	base := isolateCacheState(t)
 	h := filepath.Join(base, "shared")
 	t.Setenv("HF_HUB_CACHE", h)
-	cfg := Config{CacheDir: filepath.Join(base, "a"), MaxActive: 1}
+	// Hub association is cache-layout state: pin the advanced cache mode.
+	cfg := Config{CacheDir: filepath.Join(base, "a"), StorageMode: "cache", MaxActive: 1}
 	mgr := NewJobManager(cfg, nil)
 	mgr.jobs["occupied"] = &Job{Status: JobStatusRunning}
 	one, _, err := mgr.CreateJob(DownloadRequest{Repo: "owner/model"})
@@ -411,7 +414,9 @@ func TestCacheDiskUsesExactHub(t *testing.T) {
 	r, h := filepath.Join(base, "friendly"), filepath.Join(base, "external exact")
 	t.Setenv("HF_HUB_CACHE", h)
 	s := New(Config{CacheDir: r})
-	for _, req := range []*http.Request{httptest.NewRequest("GET", "/api/diskfree", nil), httptest.NewRequest("GET", "/api/diskfree?path="+url.QueryEscape(r), nil), httptest.NewRequest("POST", "/api/diskfree", strings.NewReader(`{}`))} {
+	// The cache preview must measure at the exact Hub: pin the cache layout
+	// on the preview request (the local-first default previews a flat dir).
+	for _, req := range []*http.Request{httptest.NewRequest("GET", "/api/diskfree", nil), httptest.NewRequest("GET", "/api/diskfree?path="+url.QueryEscape(r), nil), httptest.NewRequest("POST", "/api/diskfree", strings.NewReader(`{"layout":"cache"}`))} {
 		w := httptest.NewRecorder()
 		if req.Method == "GET" {
 			s.handleDiskFree(w, req)
@@ -462,7 +467,8 @@ func TestExactHubConsumersAndConfinement(t *testing.T) {
 	r, h := filepath.Join(base, "friendly ' root"), filepath.Join(base, "separate ' storage")
 	t.Setenv("HF_HUB_CACHE", h)
 	ep, body, hash, _ := cacheDownloadFixture(t, "")
-	s := New(Config{CacheDir: r, MaxActive: 1, Concurrency: 1, Verify: "sha256", Endpoint: ep.URL})
+	// Exact-Hub consumers are cache-layout state: pin the advanced cache mode.
+	s := New(Config{CacheDir: r, StorageMode: "cache", MaxActive: 1, Concurrency: 1, Verify: "sha256", Endpoint: ep.URL})
 	j, _, err := s.jobs.CreateJob(DownloadRequest{Repo: "owner/model"})
 	if err != nil {
 		t.Fatal(err)
@@ -730,6 +736,9 @@ func TestHubEnvironmentDoesNotRedirectLocalOrDataset(t *testing.T) {
 			case "dataset":
 				req.Dataset = true
 				req.RouteKey = "unknown"
+				// The dataset hub identity under test is cache-layout
+				// state: pin the cache layout for this request.
+				req.Layout = "cache"
 			}
 			mgr := NewJobManager(cfg, nil)
 			j, _, err := mgr.CreateJob(req)
@@ -790,7 +799,8 @@ func TestSymlinkedHubContentDetection(t *testing.T) {
 	}
 	ep, body, hash, _ := cacheDownloadFixture(t, "")
 	t.Setenv("HF_HUB_CACHE", link)
-	s := New(Config{CacheDir: r, MaxActive: 1, Concurrency: 1, Verify: "sha256", Endpoint: ep.URL})
+	// Symlinked-Hub detection is cache-layout state: pin the advanced cache mode.
+	s := New(Config{CacheDir: r, StorageMode: "cache", MaxActive: 1, Concurrency: 1, Verify: "sha256", Endpoint: ep.URL})
 	j, _, err := s.jobs.CreateJob(DownloadRequest{Repo: "owner/model"})
 	if err != nil {
 		t.Fatal(err)
@@ -868,6 +878,10 @@ func TestFrozenRelativeDestinationsAcrossLaunchDirectories(t *testing.T) {
 			cfg := Config{CacheDir: "friendly", MaxActive: 1}
 			if local {
 				cfg.LocalDir = "local"
+			} else {
+				// The frozen relative Hub/cache root is cache-layout
+				// state: pin the advanced cache mode.
+				cfg.StorageMode = "cache"
 			}
 			mgr := NewJobManager(cfg, nil)
 			mgr.jobs["occupied"] = &Job{Status: JobStatusRunning}

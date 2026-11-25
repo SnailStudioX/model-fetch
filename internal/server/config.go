@@ -44,7 +44,10 @@ func HistoryPath() string {
 type ConfigFile struct {
 	CacheDir           string   `json:"cache-dir,omitempty" yaml:"cache-dir,omitempty"`
 	LocalDir           string   `json:"local-dir,omitempty" yaml:"local-dir,omitempty"`
-	LocalScanDirs      []string `json:"local-scan-dirs,omitempty" yaml:"local-scan-dirs,omitempty"`
+	// StorageMode selects the server-wide download layout: "cache" opts into
+	// the advanced HF cache mode; empty/"local" is the local-first default.
+	StorageMode   string   `json:"storage-mode,omitempty" yaml:"storage-mode,omitempty"`
+	LocalScanDirs []string `json:"local-scan-dirs,omitempty" yaml:"local-scan-dirs,omitempty"`
 	Token              string   `json:"token,omitempty" yaml:"token,omitempty"`
 	Connections        int      `json:"connections,omitempty" yaml:"connections,omitempty"`
 	MaxActive          int      `json:"max-active,omitempty" yaml:"max-active,omitempty"`
@@ -357,6 +360,11 @@ func ApplyConfigToServer(serverCfg *Config) error {
 	}
 	if serverCfg.LocalDir == "" && fileCfg.LocalDir != "" {
 		serverCfg.LocalDir = fileCfg.LocalDir
+	}
+	// The storage mode is opt-in: only an explicit "cache" in the file flips
+	// the server off the local-first default.
+	if serverCfg.StorageMode == "" && fileCfg.StorageMode != "" {
+		serverCfg.StorageMode = strings.ToLower(strings.TrimSpace(fileCfg.StorageMode))
 	}
 	if len(serverCfg.LocalScanDirs) == 0 && len(fileCfg.LocalScanDirs) > 0 {
 		serverCfg.LocalScanDirs = fileCfg.LocalScanDirs

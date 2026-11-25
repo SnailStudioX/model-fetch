@@ -34,11 +34,16 @@ type Config struct {
 	DatasetsDir string            // Output directory for datasets (not configurable via API)
 	CacheDir    string            // HuggingFace cache directory for v3 mode
 	cacheEnv    *cacheEnvironment // Startup paths; immutable across config snapshots.
-	// LocalDir, when set, puts the whole server in flat/local-file mode: every
-	// download writes real files into <LocalDir>/<owner>/<repo> instead of the
-	// HF cache layout. Set once at startup (serve --local-dir); not changeable
-	// per request. Empty = HF cache mode.
+	// LocalDir, when set, is the server-wide flat/local root: every download
+	// writes real files into <LocalDir>/<owner>/<repo> instead of the HF cache
+	// layout. Set once at startup (serve --local-dir) or through Settings.
+	// Empty = the built-in default local folder (see defaultLocalDir).
 	LocalDir string
+	// StorageMode selects the server-wide download layout: "cache" opts into
+	// the HF cache structure (the advanced mode, for huggingface-cli interop),
+	// anything else (including empty) is the local-first flat default. A
+	// per-request Layout overrides it for one download.
+	StorageMode string
 	// LocalScanDirs are additional read-only roots scanned by the Cache browser
 	// as <owner>/<model> folders, e.g. LM Studio or a manually managed model
 	// library. Downloads still go to CacheDir/LocalDir unless a job overrides it.
